@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Downloader + MP3 + Transcrição</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-top: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .feature-badges {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .feature-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .feature-badge.transcribe {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #e0e0e0;
+            overflow-x: auto;
+        }
+        
+        .tab {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        
+        .tab:hover {
+            color: #667eea;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .btn-mp3 {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 12px 24px;
+            font-size: 14px;
+        }
+        
+        .btn-mp3:hover {
+            box-shadow: 0 5px 15px rgba(240, 147, 251, 0.4);
+        }
+        
+        .btn-transcribe {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            padding: 12px 24px;
+            font-size: 14px;
+        }
+        
+        .btn-transcribe:hover {
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+        
+        .btn-download {
+            width: 100%;
+            background: #28a745;
+            margin-top: 10px;
+        }
+        
+        .btn-download:hover {
+            background: #218838;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 30px;
+            display: none;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .alert.show {
+            display: block;
+        }
+        
+        .alert-error {
+            background: #fee;
+            color: #c33;
+            border: 1px solid #fcc;
+        }
+        
+        .alert-success {
+            background: #efe;
+            color: #3c3;
+            border: 1px solid #cfc;
+        }
+        
+        .alert-info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #90caf9;
+        }
+        
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .results.show {
+            display: block;
+        }
+        
+        .media-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border: 2px solid #e9ecef;
+        }
+        
+        .media-preview {
+            width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: #000;
+        }
+        
+        .media-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .media-type {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #667eea;
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .conversion-options {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .conversion-options.show {
+            display: block;
+        }
+        
+        .quality-selector {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        
+        .quality-btn {
+            flex: 1;
+            min-width: 80px;
+            padding: 8px 16px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .quality-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+        
+        .quality-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .conversion-progress {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+            margin: 15px 0;
+            display: none;
+        }
+        
+        .conversion-progress.show {
+            display: block;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .transcription-result {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border: 1px solid #e0e0e0;
+            display: none;
+        }
+        
+        .transcription-result.show {
+            display: block;
+        }
+        
+        .transcription-text {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        
+        .language-selector {
+            margin: 10px 0;
+        }
+        
+        .language-selector select {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 100%;
+        }
+        
+        .instructions {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 30px;
+        }
+
+        .cookie-box {
+            background: #fff7e6;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border: 1px solid #ffe0b2;
+        }
+
+        .cookie-box h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .cookie-box textarea {
+            width: 100%;
+            min-height: 180px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            margin-top: 10px;
+        }
+
+        .cookie-box textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .instructions h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+            color: #666;
+        }
+        
+        .instructions li {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            color: #999;
+            font-size: 13px;
+        }
+        
+        .server-status {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+        
+        .status-dot.online {
+            background: #28a745;
+        }
+        
+        .status-dot.offline {
+            background: #dc3545;
+        }
+        
+        @media (max-width: 600px) {
+            .input-group {
+                flex-direction: column;
+            }
+            
+            .container {
+                padding: 25px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            .quality-selector {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🎵</div>
+            <h1>Instagram Downloader + MP3 + Transcrição</h1>
+            <p class="subtitle">Baixe vídeos, converta para MP3 e transcreva o áudio</p>
+            <div class="feature-badges">
+                <span class="feature-badge">✨ Conversão MP3</span>
+                <span class="feature-badge transcribe">📝 Transcrição</span>
+            </div>
+            <div class="server-status" id="serverStatus">
+                <div class="status-item">
+                    <span class="status-dot" id="apiStatus"></span>
+                    <span>API</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot" id="ytdlpStatus"></span>
+                    <span>yt-dlp</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot" id="ffmpegStatus"></span>
+                    <span>FFmpeg</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot" id="whisperStatus"></span>
+                    <span>Whisper</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" data-type="post">📝 Post</button>
+            <button class="tab" data-type="video">🎬 Vídeo</button>
+            <button class="tab" data-type="reel">🎵 Reel</button>
+            <button class="tab" data-type="igtv">📺 IGTV</button>
+        </div>
+        
+        <div class="alert alert-info show">
+            🎵 <strong>Novo:</strong> Agora você pode converter vídeos para MP3 e transcrever o áudio automaticamente!
+        </div>
+        
+        <div class="input-group">
+            <input 
+                type="text" 
+                id="urlInput" 
+                placeholder="Cole o link do Instagram aqui... (ex: https://www.instagram.com/p/...)"
+                aria-label="Instagram URL"
+            >
+            <button class="btn" id="downloadBtn" onclick="downloadMedia()">Baixar</button>
+        </div>
+        
+        <div id="alerts"></div>
+
+        <div class="cookie-box">
+            <h3>🍪 Atualizar cookies do Instagram</h3>
+            <p style="font-size: 13px; color: #666;">Cole abaixo o conteúdo do <strong>cookies.txt</strong> no formato Netscape e clique em atualizar.</p>
+            <textarea id="cookiesInput" placeholder="# Netscape HTTP Cookie File&#10;# https://curl.haxx.se/rfc/cookie_spec.html&#10;# This is a generated file! Do not edit."></textarea>
+            <button class="btn" style="margin-top: 10px;" onclick="updateCookies()">Atualizar cookies.txt</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p id="loadingText">Buscando mídia do Instagram...</p>
+        </div>
+        
+        <div class="results" id="results"></div>
+        
+        <div class="instructions">
+            <h3>📋 Como usar:</h3>
+            <ol>
+                <li><strong>Copie a URL:</strong> Abra o Instagram e vá até o post ou vídeo que deseja baixar. Copie o link.</li>
+                <li><strong>Cole o link:</strong> Cole a URL no campo acima.</li>
+                <li><strong>Baixe:</strong> Clique em "Baixar" e aguarde.</li>
+                <li><strong>Converta para MP3:</strong> Se for um vídeo, escolha a qualidade e clique em "Converter para MP3".</li>
+                <li><strong>Transcreva:</strong> Após converter, você pode transcrever o áudio para texto!</li>
+            </ol>
+        </div>
+        
+        <div class="footer">
+            <p>⚠️ Apenas para fins educacionais. Respeite os direitos autorais.</p>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE_URL = window.location.origin;
+        
+        let currentType = 'post';
+        let currentMediaUrl = null;
+        let currentMp3Id = null;
+        
+        // Check server status on load
+        document.addEventListener('DOMContentLoaded', checkServerStatus);
+        
+        async function checkServerStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/health`);
+                const data = await response.json();
+                
+                document.getElementById('apiStatus').classList.add('online');
+                document.getElementById('ytdlpStatus').classList.add(
+                    data['yt-dlp'] && data['yt-dlp'].includes('disponível') ? 'online' : 'offline'
+                );
+                document.getElementById('ffmpegStatus').classList.add(
+                    data.ffmpeg === 'disponível' ? 'online' : 'offline'
+                );
+                document.getElementById('whisperStatus').classList.add(
+                    data.whisper && data.whisper.includes('disponível') ? 'online' : 'offline'
+                );
+            } catch (error) {
+                document.getElementById('apiStatus').classList.add('offline');
+                document.getElementById('ytdlpStatus').classList.add('offline');
+                document.getElementById('ffmpegStatus').classList.add('offline');
+                document.getElementById('whisperStatus').classList.add('offline');
+                showAlert('⚠️ Não foi possível conectar ao servidor. Verifique se o backend está rodando.', 'error');
+            }
+        }
+        
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                currentType = this.dataset.type;
+                clearAlerts();
+            });
+        });
+        
+        // URL patterns
+        const urlPatterns = {
+            post: /^https?:\/\/(www\.)?instagram\.com\/(p|tv)\/[a-zA-Z0-9_-]+\/?(\?.*)?$/,
+            video: /^https?:\/\/(www\.)?instagram\.com\/(p|tv|reel)\/[a-zA-Z0-9_-]+\/?(\?.*)?$/,
+            reel: /^https?:\/\/(www\.)?instagram\.com\/reel\/[a-zA-Z0-9_-]+\/?(\?.*)?$/,
+            igtv: /^https?:\/\/(www\.)?instagram\.com\/(tv|p)\/[a-zA-Z0-9_-]+\/?(\?.*)?$/
+        };
+        
+        function validateUrl(url) {
+            if (!url || url.trim() === '') {
+                return { valid: false, message: 'Por favor, insira uma URL do Instagram' };
+            }
+            
+            if (!url.includes('instagram.com')) {
+                return { valid: false, message: 'Por favor, insira uma URL válida do Instagram' };
+            }
+            
+            // Permitir qualquer URL do Instagram para maior flexibilidade
+            return { valid: true };
+        }
+        
+        function clearAlerts() {
+            document.getElementById('alerts').innerHTML = '';
+        }
+        
+        function showAlert(message, type = 'error') {
+            clearAlerts();
+            const alertsContainer = document.getElementById('alerts');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} show`;
+            alertDiv.innerHTML = message;
+            alertsContainer.appendChild(alertDiv);
+        }
+
+        async function updateCookies() {
+            const cookiesInput = document.getElementById('cookiesInput');
+            const content = cookiesInput.value.trim();
+
+            if (!content) {
+                showAlert('❌ Cole o conteúdo do cookies.txt primeiro.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/cookies`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Falha ao atualizar cookies');
+                }
+
+                showAlert('✅ cookies.txt atualizado com sucesso!', 'success');
+                cookiesInput.value = '';
+                checkServerStatus();
+            } catch (error) {
+                console.error('Erro ao atualizar cookies:', error);
+                showAlert(`❌ ${error.message}`, 'error');
+            }
+        }
+        
+        async function downloadMedia() {
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value.trim();
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            clearAlerts();
+            results.classList.remove('show');
+            results.innerHTML = '';
+            
+            const validation = validateUrl(url);
+            if (!validation.valid) {
+                showAlert(validation.message, 'error');
+                return;
+            }
+            
+            loading.classList.add('show');
+            downloadBtn.disabled = true;
+            document.getElementById('loadingText').textContent = 'Buscando mídia do Instagram...';
+            
+            try {
+                // CHAMADA REAL À API
+                const response = await fetch(`${API_BASE_URL}/api/download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Erro ao buscar mídia');
+                }
+                
+                displayResults(data);
+                showAlert('✅ Mídia encontrada! Clique nos botões abaixo.', 'success');
+                
+            } catch (error) {
+                console.error('Erro no download:', error);
+                showAlert(`❌ Erro: ${error.message}. O Instagram pode estar bloqueando o acesso. Tente novamente mais tarde.`, 'error');
+            } finally {
+                loading.classList.remove('show');
+                downloadBtn.disabled = false;
+            }
+        }
+        
+        function displayResults(data) {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+            
+            if (!data.media || data.media.length === 0) {
+                showAlert('Nenhuma mídia encontrada', 'error');
+                return;
+            }
+            
+            data.media.forEach((item, index) => {
+                const mediaDiv = document.createElement('div');
+                mediaDiv.className = 'media-item';
+                
+                let mediaElement = '';
+                if (item.type === 'video') {
+                    mediaElement = `
+                        <video class="media-preview" controls>
+                            <source src="${item.url}" type="video/mp4">
+                            Seu navegador não suporta vídeo.
+                        </video>
+                    `;
+                } else {
+                    mediaElement = `
+                        <img class="media-preview" src="${item.url}" alt="Instagram media ${index + 1}" onerror="this.src='https://via.placeholder.com/800x600?text=Imagem+não+disponível'">
+                    `;
+                }
+                
+                const conversionOptions = item.type === 'video' ? `
+                    <div class="conversion-options" id="convOptions${index}">
+                        <h4 style="margin-bottom: 10px; color: #333;">🎵 Converter para MP3</h4>
+                        <p style="font-size: 13px; color: #666; margin-bottom: 10px;">Escolha a qualidade do áudio:</p>
+                        <div class="quality-selector">
+                            <button class="quality-btn active" onclick="selectQuality(this, '128')">
+                                128 kbps<br><small>Boa</small>
+                            </button>
+                            <button class="quality-btn" onclick="selectQuality(this, '192')">
+                                192 kbps<br><small>Alta</small>
+                            </button>
+                            <button class="quality-btn" onclick="selectQuality(this, '320')">
+                                320 kbps<br><small>Máxima</small>
+                            </button>
+                        </div>
+                        <div class="conversion-progress" id="convProgress${index}">
+                            <div class="progress-bar" id="progressBar${index}"></div>
+                        </div>
+                        <button class="btn btn-mp3" onclick="convertToMP3('${item.url}', '${index}')">
+                            🎵 Converter para MP3
+                        </button>
+                        
+                        <div class="transcription-result" id="transcriptionResult${index}">
+                            <h4 style="margin-bottom: 10px; color: #333;">📝 Transcrição</h4>
+                            <div class="language-selector">
+                                <select id="languageSelect${index}">
+                                    <option value="pt">Português</option>
+                                    <option value="en">English</option>
+                                    <option value="es">Español</option>
+                                    <option value="fr">Français</option>
+                                    <option value="de">Deutsch</option>
+                                    <option value="it">Italiano</option>
+                                </select>
+                            </div>
+                            <div class="transcription-text" id="transcriptionText${index}"></div>
+                            <button class="btn btn-transcribe" style="margin-top: 10px;" onclick="transcribeAudio('${index}')">
+                                📝 Transcrever Áudio
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+                
+                mediaDiv.innerHTML = `
+                    <div class="media-info">
+                        <span class="media-type">${item.type.toUpperCase()}</span>
+                        <span>${item.quality || 'Original'}</span>
+                    </div>
+                    ${mediaElement}
+                    <button class="btn btn-download" onclick="handleDownload('${item.url}', 'instagram_${item.type}_${Date.now()}.${item.type === 'video' ? 'mp4' : 'jpg'}')">
+                        ⬇️ Baixar ${item.type === 'video' ? 'Vídeo' : 'Foto'}
+                    </button>
+                    ${item.type === 'video' ? `
+                        <button class="btn btn-mp3" style="margin-top: 10px;" onclick="toggleConversionOptions(${index})">
+                            🎵 Mostrar opções de MP3
+                        </button>
+                    ` : ''}
+                    ${conversionOptions}
+                `;
+                
+                results.appendChild(mediaDiv);
+            });
+            
+            results.classList.add('show');
+        }
+        
+        let selectedQuality = '128';
+        
+        function selectQuality(btn, quality) {
+            const parent = btn.parentElement;
+            parent.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedQuality = quality;
+        }
+        
+        function toggleConversionOptions(index) {
+            const options = document.getElementById(`convOptions${index}`);
+            if (options.style.display === 'block') {
+                options.style.display = 'none';
+            } else {
+                options.style.display = 'block';
+            }
+        }
+        
+        async function convertToMP3(videoUrl, index) {
+            const progress = document.getElementById(`convProgress${index}`);
+            const progressBar = document.getElementById(`progressBar${index}`);
+            const loading = document.getElementById('loading');
+            
+            progress.classList.add('show');
+            loading.classList.add('show');
+            document.getElementById('loadingText').textContent = 'Convertendo para MP3... Isso pode levar alguns segundos.';
+            
+            // Animate progress
+            let percent = 0;
+            const interval = setInterval(() => {
+                percent += 5;
+                if (percent >= 90) {
+                    clearInterval(interval);
+                }
+                progressBar.style.width = percent + '%';
+            }, 500);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/convert-to-mp3`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        video_url: videoUrl,
+                        quality: selectedQuality,
+                        title: 'Instagram Audio'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Falha na conversão');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Erro na conversão');
+                }
+                
+                clearInterval(interval);
+                progressBar.style.width = '100%';
+                
+                // Store mp3_id for transcription
+                currentMp3Id = data.mp3_id;
+                document.getElementById(`convOptions${index}`).dataset.mp3Id = data.mp3_id;
+                
+                showAlert(`✅ Conversão completa! Arquivo: ${data.filename} (${data.size}, ${data.duration})`, 'success');
+                
+                // Add download button
+                const convOptions = document.getElementById(`convOptions${index}`);
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'btn btn-download';
+                downloadBtn.style.marginTop = '10px';
+                downloadBtn.innerHTML = `⬇️ Baixar MP3 (${data.quality})`;
+                downloadBtn.onclick = () => window.open(`${API_BASE_URL}${data.download_url}`, '_blank');
+                
+                convOptions.appendChild(downloadBtn);
+                
+                // Show transcription section
+                document.getElementById(`transcriptionResult${index}`).classList.add('show');
+                
+            } catch (error) {
+                console.error('Erro na conversão:', error);
+                showAlert(`❌ Erro na conversão: ${error.message}`, 'error');
+            } finally {
+                loading.classList.remove('show');
+                setTimeout(() => {
+                    progress.classList.remove('show');
+                    progressBar.style.width = '0%';
+                }, 1000);
+            }
+        }
+        
+        async function transcribeAudio(index) {
+            const mp3Id = document.getElementById(`convOptions${index}`).dataset.mp3Id;
+            const transcriptionText = document.getElementById(`transcriptionText${index}`);
+            const language = document.getElementById(`languageSelect${index}`).value;
+            const loading = document.getElementById('loading');
+            
+            if (!mp3Id) {
+                showAlert('❌ Converta o vídeo para MP3 primeiro!', 'error');
+                return;
+            }
+            
+            loading.classList.add('show');
+            document.getElementById('loadingText').textContent = 'Transcrevendo áudio... Isso pode levar alguns minutos.';
+            transcriptionText.textContent = 'Processando...';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/transcribe/${mp3Id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ language: language })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Erro na transcrição');
+                }
+                
+                transcriptionText.textContent = data.text || 'Nenhum texto encontrado';
+                showAlert('✅ Transcrição completa!', 'success');
+                
+            } catch (error) {
+                console.error('Erro na transcrição:', error);
+                transcriptionText.textContent = `Erro: ${error.message}`;
+                showAlert(`❌ Erro na transcrição: ${error.message}`, 'error');
+            } finally {
+                loading.classList.remove('show');
+            }
+        }
+        
+        function handleDownload(url, filename) {
+            // Usar proxy do backend para download
+            const proxyUrl = `${API_BASE_URL}/api/proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+            window.open(proxyUrl, '_blank');
+            showAlert(`✅ Download iniciado: ${filename}`, 'success');
+        }
+        
+        document.getElementById('urlInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                downloadMedia();
+            }
+        });
+    </script>
+</body>
+</html>
