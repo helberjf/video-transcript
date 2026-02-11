@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Instagram Downloader + MP3 + Transcrição 🎵📝
 
 ⚠️ **IMPORTANTE**: Este projeto é **apenas para fins educacionais**. Baixar conteúdo do Instagram pode violar seus Termos de Serviço.
@@ -497,3 +498,6 @@ setx INSTAGRAM_COOKIES_FILE "C:\Users\default.LAPTOP-K8F2QHAF\projects\2.0-video
 python -m venv venv
 venv\Scripts\activate
 python app.py
+=======
+# video-transcript
+>>>>>>> 6e4e74209768c8913f249b46b30c571409ed2898
