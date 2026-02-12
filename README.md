@@ -1,36 +1,36 @@
-<<<<<<< HEAD
-# Instagram Downloader + MP3 + Transcrição 🎵📝
+# Instagram Downloader + Transcrição (Whisper & Gemini)
 
-⚠️ **IMPORTANTE**: Este projeto é **apenas para fins educacionais**. Baixar conteúdo do Instagram pode violar seus Termos de Serviço.
+API Flask para download de mídia do Instagram, conversão para MP3 e transcrição de áudio usando **Whisper** (local) ou **Google Gemini AI** (cloud).
 
-## 🎯 Funcionalidades
+## ✨ Funcionalidades
 
-✅ **Download de Mídia do Instagram**
-- Posts, Reels, IGTV, Vídeos
-- Fotos e vídeos em alta qualidade
+- 📥 **Download de vídeos e fotos** do Instagram
+- 🎵 **Conversão de vídeo para MP3** (qualidade personalizável)
+- 📤 **Upload direto de arquivos** de áudio/vídeo
+- 🗣️ **Transcrição de áudio** com:
+  - **Whisper** (OpenAI - local, gratuito)
+  - **Google Gemini AI** (cloud, mais rápido e preciso)
+- 🔄 **Seleção automática** do melhor método de transcrição
+- 📝 **Prompts customizáveis** para o Gemini
+- ⚡ **Processamento assíncrono** com cleanup automático
 
-✅ **Conversão de Vídeo para MP3**
-- Extrair áudio de vídeos do Instagram
-- Escolher qualidade (128kbps, 192kbps, 320kbps)
-- Metadados automáticos (título, artista)
-- Download direto do arquivo MP3
+---
 
-✅ **Transcrição de Áudio**
-- Transcrever áudio MP3 para texto
-- Suporte a múltiplos idiomas (PT, EN, ES, FR, DE, IT)
-- Usa OpenAI Whisper para transcrição precisa
+## 📋 Requisitos
 
-## 📋 Pré-requisitos
+### Sistema
 
-### 1. FFmpeg (OBRIGATÓRIO para conversão MP3)
+- **Python 3.8+**
+- **FFmpeg** (para conversão de áudio/vídeo)
+
+### Instalação do FFmpeg
 
 **Windows:**
 ```bash
 # Via Chocolatey
 choco install ffmpeg
 
-# OU baixe de: https://ffmpeg.org/download.html
-# Adicione ao PATH do sistema
+# Ou baixe de: https://ffmpeg.org/download.html
 ```
 
 **macOS:**
@@ -44,35 +44,26 @@ sudo apt update
 sudo apt install ffmpeg
 ```
 
-**Verificar instalação:**
-```bash
-ffmpeg -version
-```
-
-### 2. Python 3.8+
-
-```bash
-python --version
-pip --version
-```
+---
 
 ## 🚀 Instalação
 
-### 1. Clone ou baixe o projeto
+### 1. Clone o repositório
 
 ```bash
+git clone https://github.com/seu-usuario/instagram-downloader.git
 cd instagram-downloader
 ```
 
-### 2. Crie um ambiente virtual (recomendado)
+### 2. Crie um ambiente virtual
 
 ```bash
-# Windows
 python -m venv venv
+
+# Windows
 venv\Scripts\activate
 
 # macOS/Linux
-python3 -m venv venv
 source venv/bin/activate
 ```
 
@@ -82,67 +73,65 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Instale o Whisper para transcrição (opcional)
+### 4. Configure a API Key do Gemini (Opcional, mas recomendado)
 
-```bash
-pip install openai-whisper
+#### Como obter a chave:
+
+1. Acesse [Google AI Studio](https://aistudio.google.com/)
+2. Faça login com sua conta Google
+3. Clique em **"Get API key"**
+4. Clique em **"Create API key in new project"**
+5. Copie a chave gerada
+
+#### Configure a variável de ambiente:
+
+**Windows (PowerShell):**
+```powershell
+$env:GEMINI_API_KEY="sua_chave_aqui"
 ```
 
-**Nota:** O Whisper requer ffmpeg instalado.
-
-### 5. Crie a pasta temporária
-
-```bash
-mkdir temp
+**Windows (CMD):**
+```cmd
+set GEMINI_API_KEY=sua_chave_aqui
 ```
 
-## 🎵 Como Usar
+**macOS/Linux:**
+```bash
+export GEMINI_API_KEY="sua_chave_aqui"
 
-### 1. Inicie o servidor
+# Para tornar permanente, adicione ao ~/.bashrc ou ~/.zshrc:
+echo 'export GEMINI_API_KEY="sua_chave_aqui"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+---
+
+## 🎯 Uso
+
+### Iniciar o servidor
 
 ```bash
 python app.py
 ```
 
-O servidor estará rodando em: http://localhost:5000
+O servidor estará disponível em `http://localhost:5000`
 
-### 2. Acesse a interface web
+---
 
-Abra http://localhost:5000 no seu navegador.
+## 📡 Endpoints da API
 
-### 3. Baixe e converta
+### 1. Download de mídia do Instagram
 
-1. **Cole a URL** do Instagram no campo
-2. Clique em **"Baixar"**
-3. Após carregar, clique em **"Mostrar opções de MP3"**
-4. Escolha a qualidade e clique em **"Converter para MP3"**
-5. Aguarde a conversão
-6. Baixe o MP3 ou clique em **"Transcrever Áudio"**
+```bash
+POST /api/download
+Content-Type: application/json
 
-## 📁 Estrutura do Projeto
-
-```
-instagram-downloader/
-├── app.py                 # Backend Flask completo
-├── index.html            # Frontend com interface completa
-├── requirements.txt      # Dependências Python
-├── temp/                 # Arquivos temporários (criado automaticamente)
-└── README.md            # Este arquivo
-```
-
-## 🔌 API Endpoints
-
-### POST /api/download
-Baixar mídia do Instagram
-
-**Request:**
-```json
 {
   "url": "https://www.instagram.com/p/ABC123/"
 }
 ```
 
-**Response:**
+**Resposta:**
 ```json
 {
   "success": true,
@@ -150,354 +139,328 @@ Baixar mídia do Instagram
     {
       "type": "video",
       "url": "https://...",
-      "quality": "HD"
+      "quality": "1080p"
     }
   ],
   "metadata": {
-    "author": "username",
-    "title": "Post title"
+    "title": "...",
+    "author": "..."
   }
 }
 ```
 
-### POST /api/convert-to-mp3
-Converter vídeo para MP3
+---
 
-**Request:**
+### 2. Upload de arquivo para transcrição
+
+```bash
+POST /api/upload-file
+Content-Type: multipart/form-data
+
+file: <arquivo de áudio ou vídeo>
+```
+
+**Formatos suportados:**
+- **Áudio:** MP3, WAV, AAC, OGG, M4A, FLAC, WMA
+- **Vídeo:** MP4, AVI, MOV, MKV, FLV, WEBM, WMV
+
+**Resposta:**
 ```json
+{
+  "success": true,
+  "file_id": "uuid-do-arquivo",
+  "transcribe_url": "/api/transcribe/uuid-do-arquivo",
+  "download_url": "/api/download-mp3/uuid-do-arquivo",
+  "filename": "transcription_123456789.mp3",
+  "size": "5.2 MB",
+  "duration": "3:25"
+}
+```
+
+---
+
+### 3. Transcrição de áudio
+
+```bash
+POST /api/transcribe/<file_id>
+Content-Type: application/json
+
+{
+  "method": "auto",    // "auto", "whisper", ou "gemini"
+  "language": "pt",    // Código do idioma (pt, en, es, etc.)
+  "prompt": "Transcreva este áudio com pontuação adequada"  // Opcional, apenas para Gemini
+}
+```
+
+**Parâmetros:**
+
+- `method`:
+  - `auto` (padrão): Tenta Gemini primeiro, depois Whisper
+  - `whisper`: Usa apenas Whisper (local, sem API key)
+  - `gemini`: Usa apenas Gemini (requer API key)
+
+- `language`: Código ISO do idioma (pt, en, es, fr, etc.)
+
+- `prompt`: (Opcional) Instrução customizada para o Gemini
+  - Exemplo: "Transcreva este áudio e identifique os falantes"
+  - Exemplo: "Faça um resumo detalhado deste áudio"
+
+**Resposta (sucesso):**
+```json
+{
+  "success": true,
+  "text": "Transcrição completa do áudio...",
+  "method": "gemini",
+  "model": "gemini-2.0-flash-exp",
+  "language": "pt"
+}
+```
+
+**Resposta (erro):**
+```json
+{
+  "success": false,
+  "error": "GEMINI_API_KEY não configurada",
+  "method": "gemini"
+}
+```
+
+---
+
+### 4. Transcrição direta (sem salvar)
+
+Para transcrição rápida sem salvar o arquivo permanentemente:
+
+```bash
+POST /api/transcribe-direct
+Content-Type: multipart/form-data
+
+file: <arquivo>
+method: auto
+language: pt
+prompt: Transcreva este áudio  (opcional)
+```
+
+---
+
+### 5. Conversão de vídeo para MP3
+
+```bash
+POST /api/convert-to-mp3
+Content-Type: application/json
+
 {
   "video_url": "https://...",
-  "quality": "192",
-  "title": "Minha Música"
+  "quality": "192",  // 128, 192, ou 320 kbps
+  "title": "Nome do Áudio"
 }
 ```
 
-**Response:**
+---
+
+### 6. Status do sistema
+
+```bash
+GET /api/health
+```
+
+**Resposta:**
 ```json
 {
-  "success": true,
-  "mp3_id": "abc-123",
-  "download_url": "/api/download-mp3/abc-123",
-  "transcribe_url": "/api/transcribe/abc-123",
-  "filename": "instagram_audio_123.mp3",
-  "size": "3.2 MB",
-  "duration": "2:30",
-  "quality": "192 kbps"
+  "status": "ok",
+  "version": "3.0.0",
+  "ffmpeg": "disponível",
+  "whisper": "disponível",
+  "yt-dlp": "disponível",
+  "gemini": {
+    "status": "biblioteca instalada",
+    "api_key": "configurada"
+  },
+  "temp_files": 5,
+  "stored_mp3s": 2
 }
 ```
 
-### GET /api/download-mp3/:id
-Baixar arquivo MP3 convertido
+---
 
-### POST /api/transcribe/:id
-Transcrever áudio MP3 para texto
+## 🧪 Exemplos de Uso
 
-**Request:**
-```json
-{
-  "language": "pt"
+### Exemplo 1: Upload e transcrição com Gemini
+
+```python
+import requests
+
+# Upload do arquivo
+files = {'file': open('meu_audio.mp3', 'rb')}
+response = requests.post('http://localhost:5000/api/upload-file', files=files)
+file_id = response.json()['file_id']
+
+# Transcrever com Gemini
+data = {
+    'method': 'gemini',
+    'prompt': 'Transcreva este áudio e identifique os tópicos principais'
 }
+response = requests.post(
+    f'http://localhost:5000/api/transcribe/{file_id}',
+    json=data
+)
+print(response.json()['text'])
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "text": "Texto transcrito do áudio...",
-  "language": "pt"
-}
+### Exemplo 2: Download do Instagram e transcrição
+
+```python
+import requests
+
+# 1. Download do Instagram
+data = {'url': 'https://www.instagram.com/reel/ABC123/'}
+response = requests.post('http://localhost:5000/api/download', json=data)
+video_url = response.json()['media'][0]['url']
+
+# 2. Converter para MP3
+data = {'video_url': video_url, 'quality': '192'}
+response = requests.post('http://localhost:5000/api/convert-to-mp3', json=data)
+file_id = response.json()['mp3_id']
+
+# 3. Transcrever
+data = {'method': 'auto'}
+response = requests.post(f'http://localhost:5000/api/transcribe/{file_id}', json=data)
+print(response.json()['text'])
 ```
 
-### GET /api/proxy?url=...&filename=...
-Proxy para download de arquivos (contorna CORS)
+### Exemplo 3: Transcrição direta com cURL
 
-### GET /api/health
-Verificar status do servidor
+```bash
+curl -X POST http://localhost:5000/api/transcribe-direct \
+  -F "file=@meu_audio.mp3" \
+  -F "method=gemini" \
+  -F "prompt=Faça um resumo detalhado deste áudio"
+```
 
-## ⚙️ Configuração Avançada
+---
+
+## 🔧 Configurações Avançadas
 
 ### Variáveis de Ambiente
 
-Crie um arquivo `.env`:
+```bash
+# API Key do Gemini (obrigatório para usar Gemini)
+export GEMINI_API_KEY="sua_chave_aqui"
 
-```env
-# Porta do servidor
-PORT=5000
+# Porta do servidor (padrão: 5000)
+export PORT=5000
 
-# Modo de desenvolvimento
-DEBUG=true
+# Modo debug (padrão: False)
+export DEBUG=True
 
-# Limite de tamanho de arquivo (MB)
-MAX_FILE_SIZE=100
-
-# (Opcional) Cookies do Instagram para evitar bloqueios/login
-# Use UM dos métodos abaixo
-# 1) Cookies exportados para arquivo
-INSTAGRAM_COOKIES_FILE=C:\caminho\para\cookies.txt
-
-# 2) Cookies do navegador (edge|chrome|firefox|brave|opera)
-# Pode informar perfil: chrome:Profile 1
-INSTAGRAM_COOKIES_FROM_BROWSER=chrome
+# Cookies para Instagram (opcional)
+export INSTAGRAM_COOKIES_FILE="/caminho/para/cookies.txt"
+export INSTAGRAM_COOKIES_FROM_BROWSER="firefox:default"
 ```
 
-### Qualidades de Áudio Disponíveis
+### Limites e Quotas
 
-- **128 kbps** - Boa qualidade, arquivo pequeno (~3MB para 3 min)
-- **192 kbps** - Alta qualidade, tamanho médio (~4.5MB para 3 min)
-- **320 kbps** - Qualidade máxima, arquivo maior (~7.5MB para 3 min)
+- **Tamanho máximo de upload:** 500MB
+- **Rate limiting:** 
+  - Download: 10 req/min
+  - Upload: 5 req/min
+  - Transcrição: 5 req/min
+- **Limpeza automática:** Arquivos são deletados após 1 hora
+- **Duração máxima de áudio (Gemini):** 9.5 horas
 
-## 🔧 Solução de Problemas
+### Custos do Gemini
+
+O Gemini 2.0 Flash tem limite gratuito generoso:
+- **Gratuito:** 10 requisições/minuto, 1500 req/dia
+- **Custo de tokens:** ~32 tokens/segundo de áudio
+- Para mais informações: [Google AI Pricing](https://ai.google.dev/pricing)
+
+---
+
+## 🆚 Whisper vs Gemini
+
+| Característica | Whisper | Gemini |
+|----------------|---------|--------|
+| **Velocidade** | Lento (local) | Rápido (cloud) |
+| **Qualidade** | Boa | Excelente |
+| **Custo** | Gratuito | Gratuito (limite) |
+| **Internet** | Não precisa | Precisa |
+| **Setup** | Complexo | Simples (apenas API key) |
+| **Idiomas** | 90+ | 100+ |
+| **Pontuação** | Básica | Avançada |
+| **Prompts** | Não | Sim |
+
+**Recomendação:** Use `method: "auto"` para ter o melhor dos dois mundos!
+
+---
+
+## 🛠️ Troubleshooting
 
 ### Erro: "FFmpeg não encontrado"
 
-**Problema:** FFmpeg não está instalado ou não está no PATH.
+Instale o FFmpeg conforme as instruções na seção **Requisitos**.
 
-**Solução:**
-```bash
-# Verificar instalação
-ffmpeg -version
+### Erro: "GEMINI_API_KEY não configurada"
 
-# Instalar:
-# Windows: choco install ffmpeg
-# macOS: brew install ffmpeg
-# Linux: sudo apt install ffmpeg
-```
+Configure a variável de ambiente conforme a seção **Instalação**.
 
 ### Erro: "Whisper não instalado"
 
-**Problema:** Biblioteca de transcrição não instalada.
-
-**Solução:**
 ```bash
 pip install openai-whisper
 ```
 
-### Erro: "Não foi possível obter a mídia"
+### Erro: "Rate limit exceeded"
 
-**Problema:** O Instagram está bloqueando o acesso.
+Aguarde alguns minutos. O sistema tem rate limiting para proteção.
 
-**Possíveis causas:**
-- O post é privado
-- O Instagram detectou scraping
-- A URL está incorreta
+### Erro no download do Instagram
 
-**Soluções:**
-1. Verifique se o post é público
-2. Tente novamente mais tarde
-3. Verifique se a URL está correta
-
-### Erro: "rate-limit reached or login required"
-
-**Problema:** O Instagram exige login/cookies para acessar o conteúdo.
-
-**Soluções (recomendado):**
-1. Configure cookies via arquivo:
-  - Exporte cookies do Instagram em um arquivo `cookies.txt`.
-  - Defina `INSTAGRAM_COOKIES_FILE` no ambiente.
-
-2. Use cookies do navegador:
-  - Defina `INSTAGRAM_COOKIES_FROM_BROWSER` com o navegador instalado.
-  - Exemplo (Windows PowerShell):
-    - `setx INSTAGRAM_COOKIES_FROM_BROWSER "chrome"`
-
-Depois reinicie o servidor.
-
-### Erro: "Permission denied" ao usar cookies do navegador
-
-**Problema:** O arquivo de cookies do navegador está bloqueado (Chrome/Edge aberto).
-
-**Soluções:**
-1. Feche completamente o navegador (incluindo processos em segundo plano) e tente novamente.
-2. Alternativamente, exporte cookies para arquivo e use `INSTAGRAM_COOKIES_FILE`.
-
-### Erro: "Arquivo muito grande"
-
-**Problema:** O vídeo excede o limite de 100MB.
-
-**Solução:** Use um vídeo menor ou aumente o limite em `app.py`:
-```python
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB
-```
-
-### Erro: "Arquivo não encontrado ou expirado"
-
-**Problema:** Arquivo MP3 foi limpo automaticamente (após 1 hora).
-
-**Solução:** Converta novamente ou ajuste o tempo de limpeza em `app.py`.
-
-## 📊 Performance
-
-### Tempos Médios
-
-- Download do vídeo: 2-10 segundos
-- Conversão para MP3: 5-30 segundos
-- Transcrição: 30 segundos - 5 minutos (depende do tamanho)
-
-### Requisitos de Sistema
-
-- **RAM:** Mínimo 2GB (4GB+ recomendado para transcrição)
-- **Disco:** Espaço temporário para arquivos (até 100MB por vídeo)
-- **CPU:** Quanto mais rápida, mais rápida a conversão e transcrição
-
-## 🔐 Segurança
-
-### Implementado
-
-- ✅ Validação de URLs
-- ✅ Limite de tamanho de arquivo (100MB)
-- ✅ Rate limiting (10 downloads/min, 5 conversões/min)
-- ✅ Limpeza automática de arquivos (1 hora)
-- ✅ Timeout de conversão (5 minutos)
-- ✅ Sanitização de entradas
-
-### Recomendado para Produção
-
-- 🔒 Autenticação de usuários
-- 🔒 HTTPS obrigatório
-- 🔒 Fila de processamento assíncrona (Celery)
-- 🔒 Armazenamento em nuvem (S3)
-- 🔒 Logging e monitoramento
-
-## 🚀 Deploy
-
-### Docker
-
-```dockerfile
-FROM python:3.11-slim
-
-# Instalar FFmpeg
-RUN apt-get update && \
-    apt-get install -y ffmpeg && \
-    rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-COPY . .
-
-EXPOSE 5000
-CMD ["python", "app.py"]
-```
-
-Build e run:
-```bash
-docker build -t instagram-downloader .
-docker run -p 5000:5000 -v $(pwd)/temp:/app/temp instagram-downloader
-```
-
-### VPS (Ubuntu)
-
-```bash
-# Instalar dependências
-sudo apt update
-sudo apt install -y python3-pip ffmpeg
-
-# Clonar projeto
-cd /opt
-git clone <repo>
-cd instagram-downloader
-
-# Instalar dependências
-pip3 install -r requirements.txt
-
-# Criar serviço systemd
-sudo nano /etc/systemd/system/instagram-downloader.service
-```
-
-Conteúdo do serviço:
-```ini
-[Unit]
-Description=Instagram Downloader
-After=network.target
-
-[Service]
-User=www-data
-WorkingDirectory=/opt/instagram-downloader
-ExecStart=/usr/bin/python3 app.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Ativar serviço:
-```bash
-sudo systemctl enable instagram-downloader
-sudo systemctl start instagram-downloader
-```
-
-## ⚖️ Questões Legais
-
-### ⚠️ ATENÇÃO
-
-1. **Instagram ToS**: Web scraping viola os Termos de Serviço do Instagram
-2. **Copyright**: Não baixe ou distribua conteúdo protegido por direitos autorais
-3. **Privacidade**: Não baixe conteúdo privado sem permissão
-4. **Uso Pessoal**: Use apenas para fins educacionais e pessoais
-
-### Alternativas Legais
-
-- Instagram Save Feature (salvar posts no app)
-- Instagram Official APIs
-- Pedir permissão aos criadores
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas para:
-- Correção de bugs
-- Melhorias de documentação
-- Otimizações de performance
-- Testes
-
-**NÃO contribua com:**
-- Recursos que violem ToS do Instagram
-- Bypass de segurança
-- Scraping em massa
-
-## 📚 Recursos Úteis
-
-### Documentação
-- [FFmpeg Docs](https://ffmpeg.org/documentation.html)
-- [Whisper GitHub](https://github.com/openai/whisper)
-- [Flask Docs](https://flask.palletsprojects.com/)
-
-### APIs do Instagram
-- [Instagram Basic Display API](https://developers.facebook.com/docs/instagram-basic-display-api)
-- [Instagram Graph API](https://developers.facebook.com/docs/instagram-api)
-
-## 📝 Changelog
-
-### v2.1.0 (Atual)
-- ✅ Adicionada transcrição de áudio com Whisper
-- ✅ Suporte a múltiplos idiomas
-- ✅ Interface melhorada com status do servidor
-- ✅ Backend unificado e otimizado
-
-### v2.0.0
-- ✅ Adicionada conversão de vídeo para MP3
-- ✅ Seleção de qualidade de áudio
-- ✅ Backend Node.js e Python
-
-### v1.0.0
-- ✅ Versão inicial com download de mídia
-
-## 📄 Licença
-
-MIT License - Veja LICENSE para detalhes.
-
-**Este software é fornecido "como está" apenas para fins educacionais.**
+- Verifique se a URL é válida
+- Alguns posts privados não podem ser baixados
+- Configure cookies se necessário (veja seção de Configurações)
 
 ---
 
-**Lembre-se: Use este conhecimento de forma responsável e ética! 🌟**
+## ⚠️ Avisos Legais
 
-setx INSTAGRAM_COOKIES_FILE "C:\Users\default.LAPTOP-K8F2QHAF\projects\2.0-video-mp3-transcript\cookies.txt"
+- **Uso Educacional:** Este projeto é apenas para fins educacionais
+- **Termos de Serviço:** Baixar conteúdo pode violar os Termos de Serviço do Instagram
+- **Privacidade:** Não use para baixar conteúdo privado sem permissão
+- **Copyright:** Respeite os direitos autorais dos criadores
 
+---
 
-python -m venv venv
-venv\Scripts\activate
-python app.py
-=======
-# video-transcript
->>>>>>> 6e4e74209768c8913f249b46b30c571409ed2898
+## 📝 Licença
+
+MIT License - veja o arquivo LICENSE para detalhes.
+
+---
+
+## 🤝 Contribuições
+
+Contribuições são bem-vindas! Abra uma issue ou pull request.
+
+---
+
+## 📧 Suporte
+
+Para dúvidas e suporte:
+- Abra uma issue no GitHub
+- Email: seu-email@exemplo.com
+
+---
+
+## 🎯 Roadmap
+
+- [ ] Suporte a transcrição com timestamps
+- [ ] Interface web melhorada
+- [ ] Suporte a mais idiomas
+- [ ] Tradução automática
+- [ ] Integração com mais plataformas
+- [ ] Docker support
+- [ ] API de batch processing
+
+---
+
+Desenvolvido com ❤️ para fins educacionais

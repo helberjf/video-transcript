@@ -1,4 +1,4 @@
-# app.py - Instagram Downloader com Conversão MP3 e Transcrição (Whisper + Gemini)
+# app.py - Instagram Downloader com Conversão MP3 e Transcrição
 # EDUCATIONAL PURPOSES ONLY
 
 from flask import Flask, request, jsonify, send_file, Response
@@ -16,11 +16,6 @@ import time
 from threading import Thread
 import tempfile
 import yt_dlp
-from werkzeug.utils import secure_filename
-from dotenv import load_dotenv
-
-# Carregar variáveis de ambiente do arquivo .env
-load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
@@ -33,27 +28,14 @@ limiter = Limiter(
 )
 
 # Configuration
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB para uploads diretos
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
 TEMP_DIR = os.path.join(os.path.dirname(__file__), 'temp')
 os.makedirs(TEMP_DIR, exist_ok=True)
 COOKIES_DEFAULT_PATH = os.path.join(os.path.dirname(__file__), 'cookies.txt')
 
-# Extensões permitidas para upload
-ALLOWED_EXTENSIONS = {
-    'audio': {'mp3', 'wav', 'aac', 'ogg', 'm4a', 'flac', 'wma'},
-    'video': {'mp4', 'avi', 'mov', 'mkv', 'flv', 'webm', 'wmv'}
-}
-
 # Global storage for files (use Redis in production)
 mp3_files = {}
 transcriptions = {}
-
-def allowed_file(filename, file_type='audio'):
-    """Verifica se a extensão do arquivo é permitida"""
-    if '.' not in filename:
-        return False
-    ext = filename.rsplit('.', 1)[1].lower()
-    return ext in ALLOWED_EXTENSIONS.get(file_type, set()) or ext in ALLOWED_EXTENSIONS['audio']
 
 def parse_cookies_from_browser(value):
     """Parse cookies-from-browser value into yt-dlp tuple"""
@@ -213,113 +195,33 @@ def convert_to_mp3(video_path, mp3_path, quality='192', title='Instagram Audio')
     except Exception as e:
         raise Exception(f'Erro na conversão: {str(e)}')
 
-def transcribe_audio_whisper(audio_path, language='pt'):
-    """Transcrever áudio usando Whisper (OpenAI)"""
+def transcribe_audio(audio_path, language='pt'):
+    """Transcrever áudio usando Whisper (OpenAI) ou alternativa"""
     try:
-        import whisper
-        model = whisper.load_model("base")
-        result = model.transcribe(audio_path, language=language)
-        return {
-            'success': True,
-            'text': result['text'],
-            'language': result.get('language', language),
-            'segments': result.get('segments', []),
-            'method': 'whisper'
-        }
-    except ImportError:
-        return {
-            'success': False,
-            'error': 'Whisper não instalado. Instale com: pip install openai-whisper',
-            'text': None,
-            'method': 'whisper'
-        }
+        # Tentar usar whisper se disponível
+        try:
+            import whisper
+            model = whisper.load_model("base")
+            result = model.transcribe(audio_path, language=language)
+            return {
+                'success': True,
+                'text': result['text'],
+                'language': result.get('language', language),
+                'segments': result.get('segments', [])
+            }
+        except ImportError:
+            # Fallback: usar ffmpeg para extrair e retornar mensagem
+            return {
+                'success': False,
+                'error': 'Whisper não instalado. Instale com: pip install openai-whisper',
+                'text': None
+            }
     except Exception as e:
         return {
             'success': False,
             'error': str(e),
-            'text': None,
-            'method': 'whisper'
+            'text': None
         }
-
-def transcribe_audio_gemini(audio_path, prompt="Transcreva este áudio em português, incluindo pontuação adequada:"):
-    """Transcrever áudio usando Google Gemini"""
-    try:
-        from google import genai
-        
-        # Obter API key do ambiente
-        api_key = os.environ.get('GEMINI_API_KEY')
-        if not api_key:
-            return {
-                'success': False,
-                'error': 'GEMINI_API_KEY não configurada. Configure a variável de ambiente.',
-                'text': None,
-                'method': 'gemini'
-            }
-        
-        # Configurar cliente
-        client = genai.Client(api_key=api_key)
-        
-        print(f"Fazendo upload do áudio para Gemini: {audio_path}...")
-        
-        # Upload do arquivo
-        arquivo = client.files.upload(file=audio_path)
-        
-        # Aguardar processamento
-        while arquivo.state.name == "PROCESSING":
-            print(".", end="", flush=True)
-            time.sleep(2)
-            arquivo = client.files.get(name=arquivo.name)
-        
-        print("\nProcessando com Gemini...")
-        
-        # Gerar transcrição
-        # Modelos disponíveis: gemini-1.5-flash, gemini-1.5-pro
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[prompt, arquivo]
-        )
-        
-        return {
-            'success': True,
-            'text': response.text,
-            'method': 'gemini',
-            'model': 'gemini-1.5-flash'
-        }
-        
-    except ImportError:
-        return {
-            'success': False,
-            'error': 'Biblioteca google-genai não instalada. Execute: pip install -U google-genai',
-            'text': None,
-            'method': 'gemini'
-        }
-    except Exception as e:
-        return {
-            'success': False,
-            'error': f'Erro no Gemini: {str(e)}',
-            'text': None,
-            'method': 'gemini'
-        }
-
-def transcribe_audio(audio_path, language='pt', method='auto', custom_prompt=None):
-    """
-    Transcrever áudio usando o método especificado
-    method: 'auto', 'whisper', 'gemini'
-    """
-    if method == 'whisper':
-        return transcribe_audio_whisper(audio_path, language)
-    elif method == 'gemini':
-        prompt = custom_prompt or "Transcreva este áudio em português, incluindo pontuação adequada:"
-        return transcribe_audio_gemini(audio_path, prompt)
-    else:  # auto - tentar Gemini primeiro, depois Whisper
-        # Verificar se Gemini está disponível
-        if os.environ.get('GEMINI_API_KEY'):
-            result = transcribe_audio_gemini(audio_path, custom_prompt or "Transcreva este áudio em português, incluindo pontuação adequada:")
-            if result['success']:
-                return result
-        
-        # Fallback para Whisper
-        return transcribe_audio_whisper(audio_path, language)
 
 def fetch_instagram_media(url):
     """Fetch Instagram media using yt-dlp (mais confiável)"""
@@ -532,123 +434,6 @@ def download_instagram():
             'success': False
         }), 500
 
-@app.route('/api/upload-file', methods=['POST'])
-@limiter.limit("5 per minute")
-def upload_file_for_transcription():
-    """Upload de arquivo de áudio/vídeo para transcrição"""
-    uploaded_file = None
-    temp_path = None
-    audio_path = None
-    
-    try:
-        # Verificar se há arquivo no request
-        if 'file' not in request.files:
-            return jsonify({
-                'error': 'Nenhum arquivo enviado',
-                'success': False
-            }), 400
-        
-        uploaded_file = request.files['file']
-        
-        if uploaded_file.filename == '':
-            return jsonify({
-                'error': 'Nome de arquivo vazio',
-                'success': False
-            }), 400
-        
-        # Validar extensão
-        if not allowed_file(uploaded_file.filename):
-            return jsonify({
-                'error': f'Tipo de arquivo não suportado. Permitidos: {", ".join(ALLOWED_EXTENSIONS["audio"] | ALLOWED_EXTENSIONS["video"])}',
-                'success': False
-            }), 400
-        
-        # Salvar arquivo temporário
-        file_id = str(uuid.uuid4())
-        filename = secure_filename(uploaded_file.filename)
-        file_ext = filename.rsplit('.', 1)[1].lower()
-        temp_path = os.path.join(TEMP_DIR, f'upload_{file_id}.{file_ext}')
-        
-        uploaded_file.save(temp_path)
-        
-        # Verificar tamanho
-        size_mb = get_file_size_mb(temp_path)
-        if size_mb > 500:
-            raise Exception('Arquivo muito grande. Máximo: 500MB')
-        
-        # Se for vídeo, converter para MP3 primeiro
-        is_video = file_ext in ALLOWED_EXTENSIONS['video']
-        
-        if is_video:
-            print('Extraindo áudio do vídeo...')
-            audio_path = os.path.join(TEMP_DIR, f'audio_{file_id}.mp3')
-            convert_to_mp3(temp_path, audio_path, quality='192', title='Uploaded Audio')
-        else:
-            audio_path = temp_path
-        
-        # Obter duração
-        duration, duration_seconds = get_video_duration(audio_path)
-        audio_size = get_file_size_mb(audio_path)
-        
-        # Armazenar informações do arquivo
-        file_info = {
-            'path': audio_path,
-            'original_filename': filename,
-            'filename': f'transcription_{int(time.time())}.mp3',
-            'size': audio_size,
-            'duration': duration,
-            'duration_seconds': duration_seconds,
-            'created': time.time(),
-            'is_from_upload': True
-        }
-        
-        mp3_files[file_id] = file_info
-        
-        # Limpar arquivo original se era vídeo
-        if is_video and temp_path != audio_path and os.path.exists(temp_path):
-            os.remove(temp_path)
-        
-        # Agendar limpeza
-        def schedule_cleanup():
-            time.sleep(3600)  # 1 hora
-            try:
-                if os.path.exists(audio_path):
-                    os.remove(audio_path)
-                if file_id in mp3_files:
-                    del mp3_files[file_id]
-            except Exception as e:
-                print(f'Erro na limpeza agendada: {e}')
-        
-        Thread(target=schedule_cleanup, daemon=True).start()
-        
-        return jsonify({
-            'success': True,
-            'file_id': file_id,
-            'transcribe_url': f'/api/transcribe/{file_id}',
-            'download_url': f'/api/download-mp3/{file_id}',
-            'filename': file_info['filename'],
-            'original_filename': filename,
-            'size': f'{audio_size} MB',
-            'duration': duration,
-            'is_video': is_video
-        })
-        
-    except Exception as e:
-        print(f'Erro no upload: {str(e)}')
-        
-        # Cleanup on error
-        for path in [temp_path, audio_path]:
-            if path and os.path.exists(path):
-                try:
-                    os.remove(path)
-                except:
-                    pass
-        
-        return jsonify({
-            'error': str(e),
-            'success': False
-        }), 500
-
 @app.route('/api/convert-to-mp3', methods=['POST'])
 @limiter.limit("5 per minute")
 def convert_video_to_mp3():
@@ -808,19 +593,15 @@ def transcribe_file(file_id):
         if file_id in transcriptions:
             return jsonify({
                 'success': True,
-                'transcription': transcriptions[file_id],
-                'cached': True
+                'transcription': transcriptions[file_id]
             })
         
-        # Obter parâmetros do request
+        # Obter idioma do request
         data = request.get_json() or {}
         language = data.get('language', 'pt')
-        method = data.get('method', 'auto')  # 'auto', 'whisper', 'gemini'
-        custom_prompt = data.get('prompt')
         
         # Transcrever
-        print(f'Transcrevendo com método: {method}')
-        result = transcribe_audio(mp3_info['path'], language, method, custom_prompt)
+        result = transcribe_audio(mp3_info['path'], language)
         
         if result['success']:
             transcriptions[file_id] = result
@@ -829,85 +610,6 @@ def transcribe_file(file_id):
         
     except Exception as e:
         print(f'Erro na transcrição: {str(e)}')
-        return jsonify({
-            'error': str(e),
-            'success': False
-        }), 500
-
-@app.route('/api/transcribe-direct', methods=['POST'])
-@limiter.limit("5 per minute")
-def transcribe_direct():
-    """Transcrever arquivo enviado diretamente (sem salvar permanentemente)"""
-    temp_file = None
-    audio_file = None
-    
-    try:
-        if 'file' not in request.files:
-            return jsonify({
-                'error': 'Nenhum arquivo enviado',
-                'success': False
-            }), 400
-        
-        uploaded_file = request.files['file']
-        
-        if uploaded_file.filename == '':
-            return jsonify({
-                'error': 'Nome de arquivo vazio',
-                'success': False
-            }), 400
-        
-        if not allowed_file(uploaded_file.filename):
-            return jsonify({
-                'error': f'Tipo de arquivo não suportado',
-                'success': False
-            }), 400
-        
-        # Parâmetros
-        method = request.form.get('method', 'auto')
-        language = request.form.get('language', 'pt')
-        custom_prompt = request.form.get('prompt')
-        
-        # Salvar temporariamente
-        file_id = str(uuid.uuid4())
-        filename = secure_filename(uploaded_file.filename)
-        file_ext = filename.rsplit('.', 1)[1].lower()
-        temp_file = os.path.join(TEMP_DIR, f'temp_{file_id}.{file_ext}')
-        
-        uploaded_file.save(temp_file)
-        
-        # Se for vídeo, converter para áudio
-        is_video = file_ext in ALLOWED_EXTENSIONS['video']
-        
-        if is_video:
-            audio_file = os.path.join(TEMP_DIR, f'temp_audio_{file_id}.mp3')
-            convert_to_mp3(temp_file, audio_file, quality='192')
-        else:
-            audio_file = temp_file
-        
-        # Transcrever
-        result = transcribe_audio(audio_file, language, method, custom_prompt)
-        
-        # Limpar arquivos temporários
-        for file_path in [temp_file, audio_file]:
-            if file_path and os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except:
-                    pass
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        print(f'Erro na transcrição direta: {str(e)}')
-        
-        # Cleanup
-        for file_path in [temp_file, audio_file]:
-            if file_path and os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except:
-                    pass
-        
         return jsonify({
             'error': str(e),
             'success': False
@@ -976,15 +678,6 @@ def health_check():
         ytdlp_status = 'disponível'
     except ImportError:
         ytdlp_status = 'não instalado (pip install yt-dlp)'
-    
-    # Check Gemini
-    try:
-        from google import genai
-        gemini_status = 'biblioteca instalada'
-        gemini_api_key = 'configurada' if os.environ.get('GEMINI_API_KEY') else 'não configurada'
-    except ImportError:
-        gemini_status = 'não instalado (pip install -U google-genai)'
-        gemini_api_key = 'N/A'
 
     cookies_file = (
         os.environ.get('INSTAGRAM_COOKIES_FILE')
@@ -1001,14 +694,10 @@ def health_check():
     return jsonify({
         'status': 'ok',
         'timestamp': time.time(),
-        'version': '3.0.0',
+        'version': '2.1.0',
         'ffmpeg': ffmpeg_status,
         'whisper': whisper_status,
         'yt-dlp': ytdlp_status,
-        'gemini': {
-            'status': gemini_status,
-            'api_key': gemini_api_key
-        },
         'cookies_file': cookies_file if cookies_file else None,
         'cookies_file_exists': cookies_file_exists,
         'cookies_from_browser': cookies_from_browser if cookies_from_browser else None,
@@ -1104,61 +793,35 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('DEBUG', 'False').lower() == 'true'
     
-    print('🚀 Instagram Downloader + MP3 + Transcrição (Whisper & Gemini) API')
-    print('=' * 70)
+    print('🚀 Instagram Downloader + MP3 + Transcrição API iniciando...')
     print(f'📱 Servidor: http://localhost:{port}')
-    print(f'🔌 API Base: http://localhost:{port}/api')
-    print('')
-    print('📋 Endpoints disponíveis:')
-    print(f'  • POST /api/download - Baixar mídia do Instagram')
-    print(f'  • POST /api/upload-file - Upload de arquivo para transcrição')
-    print(f'  • POST /api/convert-to-mp3 - Converter vídeo para MP3')
-    print(f'  • POST /api/transcribe/<file_id> - Transcrever áudio')
-    print(f'  • POST /api/transcribe-direct - Transcrição direta (sem salvar)')
-    print(f'  • GET  /api/download-mp3/<file_id> - Download de MP3')
-    print(f'  • GET  /api/health - Status do sistema')
-    print('')
-    print('⚙️  Status das dependências:')
+    print(f'🔌 API: http://localhost:{port}/api/download')
+    print(f'🎵 Conversão MP3: http://localhost:{port}/api/convert-to-mp3')
+    print(f'📝 Transcrição: http://localhost:{port}/api/transcribe/<file_id>')
+    print('\n⚠️  IMPORTANTE: Apenas para fins educacionais.')
+    print('   Baixar conteúdo pode violar os Termos de Serviço do Instagram.\n')
     
     # Check FFmpeg
     try:
         subprocess.run(['ffmpeg', '-version'], capture_output=True, timeout=5)
-        print('  ✅ FFmpeg instalado')
+        print('✅ FFmpeg encontrado!')
     except:
-        print('  ❌ FFmpeg não encontrado! Instale para usar conversão MP3.')
+        print('❌ FFmpeg não encontrado! Instale para usar conversão MP3.')
     
     # Check yt-dlp
     try:
         import yt_dlp
-        print('  ✅ yt-dlp instalado')
+        print('✅ yt-dlp encontrado!')
     except ImportError:
-        print('  ❌ yt-dlp não encontrado! Execute: pip install yt-dlp')
+        print('❌ yt-dlp não encontrado! Execute: pip install yt-dlp')
     
     # Check Whisper
     try:
         import whisper
-        print('  ✅ Whisper instalado (transcrição local)')
+        print('✅ Whisper encontrado!')
     except ImportError:
-        print('  ⚠️  Whisper não instalado (opcional)')
-        print('      Instale com: pip install openai-whisper')
+        print('⚠️  Whisper não instalado. Instale com: pip install openai-whisper')
     
-    # Check Gemini
-    try:
-        from google import genai
-        print('  ✅ Google Gemini AI instalado')
-        if os.environ.get('GEMINI_API_KEY'):
-            print('  ✅ GEMINI_API_KEY configurada')
-        else:
-            print('  ⚠️  GEMINI_API_KEY não configurada')
-            print('      Configure: export GEMINI_API_KEY="sua_chave_aqui"')
-    except ImportError:
-        print('  ❌ Google Gemini AI não instalado')
-        print('      Instale com: pip install -U google-genai')
-    
-    print('')
-    print('⚠️  IMPORTANTE: Apenas para fins educacionais.')
-    print('   Baixar conteúdo pode violar os Termos de Serviço do Instagram.')
-    print('=' * 70)
     print('')
     
     app.run(
