@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Downloader + MP3 + Transcrição (Whisper & Gemini)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-top: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .feature-badges {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .feature-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .feature-badge.transcribe {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .feature-badge.gemini {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        
+        .mode-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .mode-tab {
+            flex: 1;
+            padding: 15px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        
+        .mode-tab:hover {
+            color: #667eea;
+        }
+        
+        .mode-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 600;
+        }
+        
+        .mode-content {
+            display: none;
+        }
+        
+        .mode-content.active {
+            display: block;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+            overflow-x: auto;
+        }
+        
+        .tab {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        
+        .tab:hover {
+            color: #667eea;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .file-upload-area {
+            border: 3px dashed #e0e0e0;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        
+        .file-upload-area:hover {
+            border-color: #667eea;
+            background: #f8f9fa;
+        }
+        
+        .file-upload-area.drag-over {
+            border-color: #667eea;
+            background: #e3f2fd;
+        }
+        
+        .file-upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .file-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .file-info.show {
+            display: block;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .btn-mp3 {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 12px 24px;
+            font-size: 14px;
+        }
+        
+        .btn-mp3:hover {
+            box-shadow: 0 5px 15px rgba(240, 147, 251, 0.4);
+        }
+        
+        .btn-transcribe {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            padding: 12px 24px;
+            font-size: 14px;
+        }
+        
+        .btn-transcribe:hover {
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+        
+        .btn-download {
+            width: 100%;
+            background: #28a745;
+            margin-top: 10px;
+        }
+        
+        .btn-download:hover {
+            background: #218838;
+        }
+        
+        .transcription-method {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        
+        .method-btn {
+            flex: 1;
+            min-width: 100px;
+            padding: 10px 16px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 13px;
+            text-align: center;
+        }
+        
+        .method-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+        
+        .method-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .custom-prompt-area {
+            margin: 15px 0;
+            display: none;
+        }
+        
+        .custom-prompt-area.show {
+            display: block;
+        }
+        
+        .custom-prompt-area textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .custom-prompt-area textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 30px;
+            display: none;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .alert.show {
+            display: block;
+        }
+        
+        .alert-error {
+            background: #fee;
+            color: #c33;
+            border: 1px solid #fcc;
+        }
+        
+        .alert-success {
+            background: #efe;
+            color: #3c3;
+            border: 1px solid #cfc;
+        }
+        
+        .alert-info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #90caf9;
+        }
+        
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .results.show {
+            display: block;
+        }
+        
+        .media-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border: 2px solid #e9ecef;
+        }
+        
+        .media-preview {
+            width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: #000;
+        }
+        
+        .media-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .media-type {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #667eea;
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .conversion-options {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .conversion-options.show {
+            display: block;
+        }
+        
+        .quality-selector {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        
+        .quality-btn {
+            flex: 1;
+            min-width: 80px;
+            padding: 8px 16px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .quality-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+        
+        .quality-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .conversion-progress {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+            margin: 15px 0;
+            display: none;
+        }
+        
+        .conversion-progress.show {
+            display: block;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .transcription-result {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border: 1px solid #e0e0e0;
+            display: none;
+        }
+        
+        .transcription-result.show {
+            display: block;
+        }
+        
+        .transcription-text {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        
+        .language-selector {
+            margin: 10px 0;
+        }
+        
+        .language-selector select {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 100%;
+        }
+        
+        .instructions {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 30px;
+        }
+
+        .cookie-box {
+            background: #fff7e6;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border: 1px solid #ffe0b2;
+        }
+
+        .cookie-box h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .cookie-box textarea {
+            width: 100%;
+            min-height: 180px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            margin-top: 10px;
+        }
+
+        .cookie-box textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .instructions h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .instructions ol, .instructions ul {
+            margin-left: 20px;
+            color: #666;
+        }
+        
+        .instructions li {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            color: #999;
+            font-size: 13px;
+        }
+        
+        .server-status {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 10px;
+            font-size: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+        
+        .status-dot.online {
+            background: #28a745;
+        }
+        
+        .status-dot.offline {
+            background: #dc3545;
+        }
+        
+        @media (max-width: 600px) {
+            .input-group {
+                flex-direction: column;
+            }
+            
+            .container {
+                padding: 25px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            .quality-selector, .transcription-method {
+                flex-direction: column;
+            }
+            
+            .mode-tabs {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🎵</div>
+            <h1>Instagram Downloader + Transcrição</h1>
+            <p class="subtitle">Baixe vídeos, converta para MP3 e transcreva com Whisper ou Gemini AI</p>
+            <div class="feature-badges">
+                <span class="feature-badge">✨ Conversão MP3</span>
+                <span class="feature-badge transcribe">📝 Whisper</span>
+                <span class="feature-badge gemini">🤖 Gemini AI</span>
+            </div>
+            <div class="server-status" id="serverStatus">
+                <div class="status-item">
+                    <span class="status-dot" id="apiStatus"></span>
+                    <span>API</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot" id="ytdlpStatus"></span>
+                    <span>yt-dlp</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot" id="ffmpegStatus"></span>
+                    <span>FFmpeg</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot" id="whisperStatus"></span>
+                    <span>Whisper</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot" id="geminiStatus"></span>
+                    <span>Gemini</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modo de operação -->
+        <div class="mode-tabs">
+            <button class="mode-tab active" data-mode="instagram">
+                📱 Download do Instagram
+            </button>
+            <button class="mode-tab" data-mode="upload">
+                📤 Upload de Arquivo
+            </button>
+        </div>
+        
+        <!-- Modo Instagram -->
+        <div class="mode-content active" id="instagramMode">
+            <div class="tabs">
+                <button class="tab active" data-type="post">📝 Post</button>
+                <button class="tab" data-type="video">🎬 Vídeo</button>
+                <button class="tab" data-type="reel">🎵 Reel</button>
+                <button class="tab" data-type="igtv">📺 IGTV</button>
+            </div>
+            
+            <div class="alert alert-info show">
+                🎵 <strong>Novo:</strong> Transcreva com Gemini AI ou Whisper! Escolha o método depois de converter.
+            </div>
+            
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="urlInput" 
+                    placeholder="Cole o link do Instagram aqui... (ex: https://www.instagram.com/p/...)"
+                    aria-label="Instagram URL"
+                >
+                <button class="btn" id="downloadBtn" onclick="downloadMedia()">Baixar</button>
+            </div>
+        </div>
+        
+        <!-- Modo Upload -->
+        <div class="mode-content" id="uploadMode">
+            <div class="alert alert-info show">
+                📤 <strong>Upload direto:</strong> Envie áudio ou vídeo do seu computador para transcrever!
+            </div>
+            
+            <div class="file-upload-area" id="fileUploadArea">
+                <div class="file-upload-icon">📁</div>
+                <h3>Arraste um arquivo aqui</h3>
+                <p style="color: #666; margin-top: 10px;">ou clique para selecionar</p>
+                <p style="color: #999; font-size: 12px; margin-top: 10px;">
+                    Formatos suportados: MP3, WAV, MP4, AVI, MOV, MKV e mais
+                </p>
+                <input type="file" id="fileInput" accept="audio/*,video/*" style="display: none;">
+            </div>
+            
+            <div class="file-info" id="fileInfo">
+                <p><strong>Arquivo selecionado:</strong> <span id="fileName"></span></p>
+                <p><strong>Tamanho:</strong> <span id="fileSize"></span></p>
+            </div>
+            
+            <button class="btn" id="uploadBtn" style="width: 100%; display: none;" onclick="uploadFile()">
+                📤 Enviar e Processar
+            </button>
+        </div>
+        
+        <div id="alerts"></div>
+
+        <div class="cookie-box">
+            <h3>🍪 Atualizar cookies do Instagram</h3>
+            <p style="font-size: 13px; color: #666;">Cole abaixo o conteúdo do <strong>cookies.txt</strong> no formato Netscape e clique em atualizar.</p>
+            <textarea id="cookiesInput" placeholder="# Netscape HTTP Cookie File&#10;# https://curl.haxx.se/rfc/cookie_spec.html&#10;# This is a generated file! Do not edit."></textarea>
+            <button class="btn" style="margin-top: 10px;" onclick="updateCookies()">Atualizar cookies.txt</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p id="loadingText">Processando...</p>
+        </div>
+        
+        <div class="results" id="results"></div>
+        
+        <div class="instructions">
+            <h3>📋 Como usar:</h3>
+            
+            <h4 style="margin-top: 15px; color: #555;">🌐 Download do Instagram:</h4>
+            <ol>
+                <li>Copie a URL do post/vídeo do Instagram</li>
+                <li>Cole no campo acima e clique em "Baixar"</li>
+                <li>Converta para MP3 e escolha o método de transcrição</li>
+            </ol>
+            
+            <h4 style="margin-top: 15px; color: #555;">📤 Upload de Arquivo:</h4>
+            <ol>
+                <li>Clique em "Upload de Arquivo" no topo</li>
+                <li>Arraste ou selecione seu arquivo de áudio/vídeo</li>
+                <li>Escolha o método e transcreva!</li>
+            </ol>
+            
+            <h4 style="margin-top: 15px; color: #555;">🤖 Métodos de Transcrição:</h4>
+            <ul>
+                <li><strong>Auto:</strong> Tenta Gemini primeiro, depois Whisper</li>
+                <li><strong>Gemini:</strong> Mais rápido e preciso (requer API key)</li>
+                <li><strong>Whisper:</strong> Local, sem internet, mais lento</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>⚠️ Apenas para fins educacionais. Respeite os direitos autorais.</p>
+            <p style="margin-top: 5px;">v3.0 - Whisper & Gemini AI</p>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE_URL = window.location.origin;
+        
+        let currentType = 'post';
+        let currentMediaUrl = null;
+        let currentMp3Id = null;
+        let currentMode = 'instagram';
+        let selectedFile = null;
+        let selectedTranscriptionMethod = 'auto';
+        
+        // Check server status on load
+        document.addEventListener('DOMContentLoaded', () => {
+            checkServerStatus();
+            setupFileUpload();
+        });
+        
+        async function checkServerStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/health`);
+                const data = await response.json();
+                
+                document.getElementById('apiStatus').classList.add('online');
+                document.getElementById('ytdlpStatus').classList.add(
+                    data['yt-dlp'] && data['yt-dlp'].includes('disponível') ? 'online' : 'offline'
+                );
+                document.getElementById('ffmpegStatus').classList.add(
+                    data.ffmpeg === 'disponível' ? 'online' : 'offline'
+                );
+                document.getElementById('whisperStatus').classList.add(
+                    data.whisper && data.whisper.includes('disponível') ? 'online' : 'offline'
+                );
+                
+                // Check Gemini status
+                const geminiOnline = data.gemini && 
+                    data.gemini.status && 
+                    data.gemini.status.includes('instalado') &&
+                    data.gemini.api_key === 'configurada';
+                    
+                document.getElementById('geminiStatus').classList.add(
+                    geminiOnline ? 'online' : 'offline'
+                );
+                
+                if (!geminiOnline) {
+                    console.warn('Gemini não configurado. Configure GEMINI_API_KEY para usar.');
+                }
+            } catch (error) {
+                document.getElementById('apiStatus').classList.add('offline');
+                document.getElementById('ytdlpStatus').classList.add('offline');
+                document.getElementById('ffmpegStatus').classList.add('offline');
+                document.getElementById('whisperStatus').classList.add('offline');
+                document.getElementById('geminiStatus').classList.add('offline');
+                showAlert('⚠️ Não foi possível conectar ao servidor. Verifique se o backend está rodando.', 'error');
+            }
+        }
+        
+        // Mode switching
+        document.querySelectorAll('.mode-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+                currentMode = this.dataset.mode;
+                document.getElementById(currentMode + 'Mode').classList.add('active');
+                clearAlerts();
+            });
+        });
+        
+        // Tab switching (Instagram)
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                currentType = this.dataset.type;
+                clearAlerts();
+            });
+        });
+        
+        // File upload setup
+        function setupFileUpload() {
+            const uploadArea = document.getElementById('fileUploadArea');
+            const fileInput = document.getElementById('fileInput');
+            
+            uploadArea.addEventListener('click', () => fileInput.click());
+            
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('drag-over');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('drag-over');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('drag-over');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFileSelect(files[0]);
+                }
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFileSelect(e.target.files[0]);
+                }
+            });
+        }
+        
+        function handleFileSelect(file) {
+            selectedFile = file;
+            const fileInfo = document.getElementById('fileInfo');
+            const fileName = document.getElementById('fileName');
+            const fileSize = document.getElementById('fileSize');
+            const uploadBtn = document.getElementById('uploadBtn');
+            
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.classList.add('show');
+            uploadBtn.style.display = 'block';
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+        
+        async function uploadFile() {
+            if (!selectedFile) {
+                showAlert('❌ Selecione um arquivo primeiro!', 'error');
+                return;
+            }
+            
+            const loading = document.getElementById('loading');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const results = document.getElementById('results');
+            
+            loading.classList.add('show');
+            uploadBtn.disabled = true;
+            document.getElementById('loadingText').textContent = 'Fazendo upload...';
+            results.classList.remove('show');
+            results.innerHTML = '';
+            clearAlerts();
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                
+                const response = await fetch(`${API_BASE_URL}/api/upload-file`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Erro no upload');
+                }
+                
+                currentMp3Id = data.file_id;
+                
+                // Display uploaded file info
+                displayUploadedFile(data);
+                showAlert('✅ Upload concluído! Escolha o método de transcrição.', 'success');
+                
+            } catch (error) {
+                console.error('Erro no upload:', error);
+                showAlert(`❌ Erro: ${error.message}`, 'error');
+            } finally {
+                loading.classList.remove('show');
+                uploadBtn.disabled = false;
+            }
+        }
+        
+        function displayUploadedFile(data) {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+            
+            const mediaDiv = document.createElement('div');
+            mediaDiv.className = 'media-item';
+            
+            mediaDiv.innerHTML = `
+                <div class="media-info">
+                    <span class="media-type">📤 UPLOAD</span>
+                    <span>${data.size} • ${data.duration}</span>
+                </div>
+                <h4 style="margin: 15px 0; color: #333;">📝 Transcrição</h4>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                    Arquivo: <strong>${data.original_filename}</strong>
+                </p>
+                
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                    <p style="font-size: 13px; color: #666; margin-bottom: 10px;">
+                        <strong>Escolha o método de transcrição:</strong>
+                    </p>
+                    <div class="transcription-method">
+                        <button class="method-btn active" onclick="selectTranscriptionMethod(this, 'auto')">
+                            🔄 Auto<br><small>Recomendado</small>
+                        </button>
+                        <button class="method-btn" onclick="selectTranscriptionMethod(this, 'gemini')">
+                            🤖 Gemini<br><small>Mais rápido</small>
+                        </button>
+                        <button class="method-btn" onclick="selectTranscriptionMethod(this, 'whisper')">
+                            📝 Whisper<br><small>Local</small>
+                        </button>
+                    </div>
+                    
+                    <div class="custom-prompt-area" id="customPrompt">
+                        <p style="font-size: 13px; color: #666; margin-bottom: 8px;">
+                            <strong>Prompt customizado (apenas Gemini):</strong>
+                        </p>
+                        <textarea id="promptText" placeholder="Ex: Transcreva este áudio e identifique os principais tópicos..."></textarea>
+                    </div>
+                    
+                    <div class="language-selector" style="margin-top: 15px;">
+                        <select id="languageSelect">
+                            <option value="pt">🇧🇷 Português</option>
+                            <option value="en">🇺🇸 English</option>
+                            <option value="es">🇪🇸 Español</option>
+                            <option value="fr">🇫🇷 Français</option>
+                            <option value="de">🇩🇪 Deutsch</option>
+                            <option value="it">🇮🇹 Italiano</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn btn-transcribe" style="margin-top: 15px; width: 100%;" onclick="transcribeUploadedFile()">
+                        📝 Transcrever Áudio
+                    </button>
+                    
+                    <div class="transcription-result" id="transcriptionResult">
+                        <h4 style="margin-bottom: 10px; color: #333;">✅ Resultado da Transcrição</h4>
+                        <div class="transcription-text" id="transcriptionText"></div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-download" onclick="window.open('${API_BASE_URL}${data.download_url}', '_blank')">
+                    ⬇️ Baixar Arquivo Processado
+                </button>
+            `;
+            
+            results.appendChild(mediaDiv);
+            results.classList.add('show');
+        }
+        
+        function selectTranscriptionMethod(btn, method) {
+            const parent = btn.parentElement;
+            parent.querySelectorAll('.method-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedTranscriptionMethod = method;
+            
+            // Show/hide custom prompt area
+            const promptArea = document.getElementById('customPrompt');
+            if (method === 'gemini' || method === 'auto') {
+                promptArea.classList.add('show');
+            } else {
+                promptArea.classList.remove('show');
+            }
+        }
+        
+        async function transcribeUploadedFile() {
+            if (!currentMp3Id) {
+                showAlert('❌ Nenhum arquivo para transcrever!', 'error');
+                return;
+            }
+            
+            const loading = document.getElementById('loading');
+            const transcriptionResult = document.getElementById('transcriptionResult');
+            const transcriptionText = document.getElementById('transcriptionText');
+            const language = document.getElementById('languageSelect').value;
+            const customPrompt = document.getElementById('promptText') ? document.getElementById('promptText').value : '';
+            
+            loading.classList.add('show');
+            document.getElementById('loadingText').textContent = 'Transcrevendo... Isso pode levar alguns minutos.';
+            transcriptionText.textContent = 'Processando...';
+            transcriptionResult.classList.add('show');
+            
+            try {
+                const body = {
+                    method: selectedTranscriptionMethod,
+                    language: language
+                };
+                
+                if (customPrompt && (selectedTranscriptionMethod === 'gemini' || selectedTranscriptionMethod === 'auto')) {
+                    body.prompt = customPrompt;
+                }
+                
+                const response = await fetch(`${API_BASE_URL}/api/transcribe/${currentMp3Id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Erro na transcrição');
+                }
+                
+                transcriptionText.textContent = data.text || 'Nenhum texto encontrado';
+                showAlert(`✅ Transcrição completa usando ${data.method}!`, 'success');
+                
+            } catch (error) {
+                console.error('Erro na transcrição:', error);
+                transcriptionText.textContent = `Erro: ${error.message}`;
+                showAlert(`❌ Erro na transcrição: ${error.message}`, 'error');
+            } finally {
+                loading.classList.remove('show');
+            }
+        }
+        
+        // Instagram download functions
+        function validateUrl(url) {
+            if (!url || url.trim() === '') {
+                return { valid: false, message: 'Por favor, insira uma URL do Instagram' };
+            }
+            
+            if (!url.includes('instagram.com')) {
+                return { valid: false, message: 'Por favor, insira uma URL válida do Instagram' };
+            }
+            
+            return { valid: true };
+        }
+        
+        function clearAlerts() {
+            document.getElementById('alerts').innerHTML = '';
+        }
+        
+        function showAlert(message, type = 'error') {
+            clearAlerts();
+            const alertsContainer = document.getElementById('alerts');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} show`;
+            alertDiv.innerHTML = message;
+            alertsContainer.appendChild(alertDiv);
+        }
+
+        async function updateCookies() {
+            const cookiesInput = document.getElementById('cookiesInput');
+            const content = cookiesInput.value.trim();
+
+            if (!content) {
+                showAlert('❌ Cole o conteúdo do cookies.txt primeiro.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/cookies`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Falha ao atualizar cookies');
+                }
+
+                showAlert('✅ cookies.txt atualizado com sucesso!', 'success');
+                cookiesInput.value = '';
+                checkServerStatus();
+            } catch (error) {
+                console.error('Erro ao atualizar cookies:', error);
+                showAlert(`❌ ${error.message}`, 'error');
+            }
+        }
+        
+        async function downloadMedia() {
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value.trim();
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            clearAlerts();
+            results.classList.remove('show');
+            results.innerHTML = '';
+            
+            const validation = validateUrl(url);
+            if (!validation.valid) {
+                showAlert(validation.message, 'error');
+                return;
+            }
+            
+            loading.classList.add('show');
+            downloadBtn.disabled = true;
+            document.getElementById('loadingText').textContent = 'Buscando mídia do Instagram...';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Erro ao buscar mídia');
+                }
+                
+                displayResults(data);
+                showAlert('✅ Mídia encontrada! Clique nos botões abaixo.', 'success');
+                
+            } catch (error) {
+                console.error('Erro no download:', error);
+                showAlert(`❌ Erro: ${error.message}. O Instagram pode estar bloqueando o acesso. Tente configurar os cookies.`, 'error');
+            } finally {
+                loading.classList.remove('show');
+                downloadBtn.disabled = false;
+            }
+        }
+        
+        function displayResults(data) {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+            
+            if (!data.media || data.media.length === 0) {
+                showAlert('Nenhuma mídia encontrada', 'error');
+                return;
+            }
+            
+            data.media.forEach((item, index) => {
+                const mediaDiv = document.createElement('div');
+                mediaDiv.className = 'media-item';
+                
+                let mediaElement = '';
+                if (item.type === 'video') {
+                    mediaElement = `
+                        <video class="media-preview" controls>
+                            <source src="${item.url}" type="video/mp4">
+                            Seu navegador não suporta vídeo.
+                        </video>
+                    `;
+                } else {
+                    mediaElement = `
+                        <img class="media-preview" src="${item.url}" alt="Instagram media ${index + 1}" onerror="this.src='https://via.placeholder.com/800x600?text=Imagem+não+disponível'">
+                    `;
+                }
+                
+                const conversionOptions = item.type === 'video' ? `
+                    <div class="conversion-options" id="convOptions${index}">
+                        <h4 style="margin-bottom: 10px; color: #333;">🎵 Converter para MP3</h4>
+                        <p style="font-size: 13px; color: #666; margin-bottom: 10px;">Escolha a qualidade do áudio:</p>
+                        <div class="quality-selector">
+                            <button class="quality-btn active" onclick="selectQuality(this, '128')">
+                                128 kbps<br><small>Boa</small>
+                            </button>
+                            <button class="quality-btn" onclick="selectQuality(this, '192')">
+                                192 kbps<br><small>Alta</small>
+                            </button>
+                            <button class="quality-btn" onclick="selectQuality(this, '320')">
+                                320 kbps<br><small>Máxima</small>
+                            </button>
+                        </div>
+                        <div class="conversion-progress" id="convProgress${index}">
+                            <div class="progress-bar" id="progressBar${index}"></div>
+                        </div>
+                        <button class="btn btn-mp3" onclick="convertToMP3('${item.url}', '${index}')">
+                            🎵 Converter para MP3
+                        </button>
+                        
+                        <div class="transcription-result" id="transcriptionResult${index}">
+                            <h4 style="margin-bottom: 10px; color: #333;">📝 Transcrição</h4>
+                            
+                            <div style="background: #fff; padding: 12px; border-radius: 6px; margin-bottom: 10px;">
+                                <p style="font-size: 13px; color: #666; margin-bottom: 8px;">
+                                    <strong>Método de transcrição:</strong>
+                                </p>
+                                <div class="transcription-method">
+                                    <button class="method-btn active" onclick="selectTranscriptionMethod(this, 'auto', ${index})">
+                                        🔄 Auto<br><small>Recomendado</small>
+                                    </button>
+                                    <button class="method-btn" onclick="selectTranscriptionMethod(this, 'gemini', ${index})">
+                                        🤖 Gemini<br><small>Rápido</small>
+                                    </button>
+                                    <button class="method-btn" onclick="selectTranscriptionMethod(this, 'whisper', ${index})">
+                                        📝 Whisper<br><small>Local</small>
+                                    </button>
+                                </div>
+                                
+                                <div class="custom-prompt-area" id="customPrompt${index}">
+                                    <p style="font-size: 13px; color: #666; margin: 10px 0 5px 0;">
+                                        <strong>Prompt (opcional):</strong>
+                                    </p>
+                                    <textarea id="promptText${index}" placeholder="Ex: Transcreva e identifique os tópicos principais..."></textarea>
+                                </div>
+                            </div>
+                            
+                            <div class="language-selector">
+                                <select id="languageSelect${index}">
+                                    <option value="pt">🇧🇷 Português</option>
+                                    <option value="en">🇺🇸 English</option>
+                                    <option value="es">🇪🇸 Español</option>
+                                    <option value="fr">🇫🇷 Français</option>
+                                    <option value="de">🇩🇪 Deutsch</option>
+                                    <option value="it">🇮🇹 Italiano</option>
+                                </select>
+                            </div>
+                            <div class="transcription-text" id="transcriptionText${index}"></div>
+                            <button class="btn btn-transcribe" style="margin-top: 10px;" onclick="transcribeAudio('${index}')">
+                                📝 Transcrever Áudio
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+                
+                mediaDiv.innerHTML = `
+                    <div class="media-info">
+                        <span class="media-type">${item.type.toUpperCase()}</span>
+                        <span>${item.quality || 'Original'}</span>
+                    </div>
+                    ${mediaElement}
+                    <button class="btn btn-download" onclick="handleDownload('${item.url}', 'instagram_${item.type}_${Date.now()}.${item.type === 'video' ? 'mp4' : 'jpg'}')">
+                        ⬇️ Baixar ${item.type === 'video' ? 'Vídeo' : 'Foto'}
+                    </button>
+                    ${item.type === 'video' ? `
+                        <button class="btn btn-mp3" style="margin-top: 10px;" onclick="toggleConversionOptions(${index})">
+                            🎵 Mostrar opções de MP3
+                        </button>
+                    ` : ''}
+                    ${conversionOptions}
+                `;
+                
+                results.appendChild(mediaDiv);
+            });
+            
+            results.classList.add('show');
+        }
+        
+        let selectedQuality = '128';
+        
+        function selectQuality(btn, quality) {
+            const parent = btn.parentElement;
+            parent.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedQuality = quality;
+        }
+        
+        function toggleConversionOptions(index) {
+            const options = document.getElementById(`convOptions${index}`);
+            if (options.style.display === 'block') {
+                options.style.display = 'none';
+            } else {
+                options.style.display = 'block';
+            }
+        }
+        
+        async function convertToMP3(videoUrl, index) {
+            const progress = document.getElementById(`convProgress${index}`);
+            const progressBar = document.getElementById(`progressBar${index}`);
+            const loading = document.getElementById('loading');
+            
+            progress.classList.add('show');
+            loading.classList.add('show');
+            document.getElementById('loadingText').textContent = 'Convertendo para MP3... Isso pode levar alguns segundos.';
+            
+            let percent = 0;
+            const interval = setInterval(() => {
+                percent += 5;
+                if (percent >= 90) {
+                    clearInterval(interval);
+                }
+                progressBar.style.width = percent + '%';
+            }, 500);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/convert-to-mp3`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        video_url: videoUrl,
+                        quality: selectedQuality,
+                        title: 'Instagram Audio'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Falha na conversão');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Erro na conversão');
+                }
+                
+                clearInterval(interval);
+                progressBar.style.width = '100%';
+                
+                currentMp3Id = data.mp3_id;
+                document.getElementById(`convOptions${index}`).dataset.mp3Id = data.mp3_id;
+                
+                showAlert(`✅ Conversão completa! Arquivo: ${data.filename} (${data.size}, ${data.duration})`, 'success');
+                
+                const convOptions = document.getElementById(`convOptions${index}`);
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'btn btn-download';
+                downloadBtn.style.marginTop = '10px';
+                downloadBtn.innerHTML = `⬇️ Baixar MP3 (${data.quality})`;
+                downloadBtn.onclick = () => window.open(`${API_BASE_URL}${data.download_url}`, '_blank');
+                
+                convOptions.appendChild(downloadBtn);
+                
+                document.getElementById(`transcriptionResult${index}`).classList.add('show');
+                
+            } catch (error) {
+                console.error('Erro na conversão:', error);
+                showAlert(`❌ Erro na conversão: ${error.message}`, 'error');
+            } finally {
+                loading.classList.remove('show');
+                setTimeout(() => {
+                    progress.classList.remove('show');
+                    progressBar.style.width = '0%';
+                }, 1000);
+            }
+        }
+        
+        async function transcribeAudio(index) {
+            const mp3Id = document.getElementById(`convOptions${index}`).dataset.mp3Id;
+            const transcriptionText = document.getElementById(`transcriptionText${index}`);
+            const language = document.getElementById(`languageSelect${index}`).value;
+            const loading = document.getElementById('loading');
+            
+            if (!mp3Id) {
+                showAlert('❌ Converta o vídeo para MP3 primeiro!', 'error');
+                return;
+            }
+            
+            loading.classList.add('show');
+            document.getElementById('loadingText').textContent = 'Transcrevendo áudio... Isso pode levar alguns minutos.';
+            transcriptionText.textContent = 'Processando...';
+            
+            try {
+                const body = {
+                    method: selectedTranscriptionMethod,
+                    language: language
+                };
+                
+                const promptText = document.getElementById(`promptText${index}`);
+                if (promptText && promptText.value && (selectedTranscriptionMethod === 'gemini' || selectedTranscriptionMethod === 'auto')) {
+                    body.prompt = promptText.value;
+                }
+                
+                const response = await fetch(`${API_BASE_URL}/api/transcribe/${mp3Id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Erro na transcrição');
+                }
+                
+                transcriptionText.textContent = data.text || 'Nenhum texto encontrado';
+                showAlert(`✅ Transcrição completa usando ${data.method}!`, 'success');
+                
+            } catch (error) {
+                console.error('Erro na transcrição:', error);
+                transcriptionText.textContent = `Erro: ${error.message}`;
+                showAlert(`❌ Erro na transcrição: ${error.message}`, 'error');
+            } finally {
+                loading.classList.remove('show');
+            }
+        }
+        
+        function handleDownload(url, filename) {
+            const proxyUrl = `${API_BASE_URL}/api/proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+            window.open(proxyUrl, '_blank');
+            showAlert(`✅ Download iniciado: ${filename}`, 'success');
+        }
+        
+        document.getElementById('urlInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                downloadMedia();
+            }
+        });
+    </script>
+</body>
+</html>
