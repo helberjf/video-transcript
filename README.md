@@ -1,253 +1,394 @@
-# Instagram Downloader + Transcrição (Whisper & Gemini)
+# Media Transcript Studio
 
-API Flask para download de mídia do Instagram, conversão para MP3 e transcrição de áudio usando **Whisper** (local) ou **Google Gemini AI** (cloud).
+Aplicação local, dividida em frontend e backend, para upload de áudio/vídeo, conversão para MP3, transcrição com fallback OpenAI → Gemini → Whisper e geração de relatórios com modelos reutilizáveis.
 
-## ✨ Funcionalidades
+Os arquivos legados na raiz, como `app.py`, permanecem como protótipo anterior. A implementação ativa desta entrega está em `frontend/` e `backend/`.
 
-- 📥 **Download de vídeos e fotos** do Instagram
-- 🎵 **Conversão de vídeo para MP3** (qualidade personalizável)
-- 📤 **Upload direto de arquivos** de áudio/vídeo
-- 🗣️ **Transcrição de áudio** com:
-  - **Whisper** (OpenAI - local, gratuito)
-  - **Google Gemini AI** (cloud, mais rápido e preciso)
-- 🔄 **Seleção automática** do melhor método de transcrição
-- 📝 **Prompts customizáveis** para o Gemini
-- ⚡ **Processamento assíncrono** com cleanup automático
+## Visão geral
 
----
+- Frontend: Next.js App Router, TypeScript estrito, Tailwind CSS.
+- Backend: FastAPI, Pydantic, SQLAlchemy, SQLite, Uvicorn, ffmpeg.
+- Transcrição: OpenAI primeiro, Gemini em fallback e Whisper local por último.
+- Relatórios: geração a partir da transcrição, com CRUD de templates e exportação em `.md` ou `.txt`.
+- Persistência: SQLite para uploads, transcrições, relatórios, templates e configurações.
 
-## 📋 Requisitos
+## Estrutura principal
 
-### Sistema
+```text
+frontend/
+  app/
+  components/
+  hooks/
+  lib/
+  services/
+  types/
 
-- **Python 3.8+**
-- **FFmpeg** (para conversão de áudio/vídeo)
+backend/
+  app/
+    api/
+    core/
+    models/
+    repositories/
+    schemas/
+    services/
+    utils/
+    workers/
+  tests/
+```
 
-### Instalação do FFmpeg
+## Funcionalidades entregues
 
-**Windows:**
-```bash
-# Via Chocolatey
+- Upload de vídeo e áudio com validação de extensão, MIME type e limite de tamanho.
+- Conversão de vídeo para MP3 em 320 kbps, 44.1 kHz, estéreo.
+- Normalização de áudio antes da transcrição.
+- Pipeline de transcrição com fallback e retorno da engine utilizada.
+- Histórico com status por etapa: `uploaded`, `converting`, `transcribing`, `generating_report`, `completed`, `error`.
+- Dashboard com cards e últimos processamentos.
+- CRUD de modelos de relatório com duplicação e favoritos.
+- Configurações locais para chaves, Whisper, idioma, template padrão e pasta de exportação.
+- Testes mínimos cobrindo utilidades de mídia, fallback de transcrição e templates/relatórios.
+- Scripts de inicialização para Windows e shell script compatível com Linux/macOS.
+- Docker Compose para subir frontend e backend juntos.
+
+## Pré-requisitos
+
+### Windows
+
+1. Instale Python 3.10 ou superior.
+2. Instale Node.js 20 ou superior.
+3. Instale ffmpeg.
+
+Opções para ffmpeg no Windows:
+
+```powershell
 choco install ffmpeg
-
-# Ou baixe de: https://ffmpeg.org/download.html
 ```
 
-**macOS:**
+Ou faça o download manual em https://ffmpeg.org/download.html e adicione a pasta `bin` ao `PATH`.
+
+### macOS
+
 ```bash
-brew install ffmpeg
+brew install python node ffmpeg
 ```
 
-**Linux (Ubuntu/Debian):**
+### Linux
+
 ```bash
 sudo apt update
-sudo apt install ffmpeg
+sudo apt install python3 python3-venv nodejs npm ffmpeg
 ```
 
----
+## Configuração sem Docker
 
-## 🚀 Instalação
-
-### 1. Clone o repositório
+### 1. Clone e entre no projeto
 
 ```bash
-git clone https://github.com/seu-usuario/instagram-downloader.git
-cd instagram-downloader
+git clone <repo>
+cd 2.0-video-mp3-transcript
 ```
 
-### 2. Crie um ambiente virtual
+### 2. Crie o ambiente virtual Python
 
 ```bash
 python -m venv venv
+```
 
-# Windows
-venv\Scripts\activate
+Ativação no Windows:
 
-# macOS/Linux
+```powershell
+venv\Scripts\Activate.ps1
+```
+
+Ativação no macOS/Linux:
+
+```bash
 source venv/bin/activate
 ```
 
-### 3. Instale as dependências
+### 3. Instale o backend
 
 ```bash
+cd backend
 pip install -r requirements.txt
+copy .env.example .env
+cd ..
 ```
 
-### 4. Configure a API Key do Gemini (Opcional, mas recomendado)
+No macOS/Linux, troque `copy` por `cp`.
 
-#### Como obter a chave:
+### 4. Instale o frontend
 
-1. Acesse [Google AI Studio](https://aistudio.google.com/)
-2. Faça login com sua conta Google
-3. Clique em **"Get API key"**
-4. Clique em **"Create API key in new project"**
-5. Copie a chave gerada
+```bash
+cd frontend
+npm install
+copy .env.example .env.local
+cd ..
+```
 
-#### Configure a variável de ambiente:
+### 5. Configure as variáveis de ambiente do backend
 
-**Windows (PowerShell):**
+Arquivo: `backend/.env`
+
+Campos mais importantes:
+
+- `OPENAI_API_KEY=`
+- `GEMINI_API_KEY=`
+- `WHISPER_MODEL=medium`
+- `MAX_UPLOAD_MB=500`
+- `DATABASE_URL=sqlite:///./data/app.db`
+
+### 6. Inicie o backend
+
+Windows PowerShell:
+
 ```powershell
-$env:GEMINI_API_KEY="sua_chave_aqui"
+cd backend
+./start_backend.ps1
 ```
 
-**Windows (CMD):**
+Windows CMD:
+
 ```cmd
-set GEMINI_API_KEY=sua_chave_aqui
+cd backend
+start_backend.bat
 ```
 
-**macOS/Linux:**
-```bash
-export GEMINI_API_KEY="sua_chave_aqui"
-
-# Para tornar permanente, adicione ao ~/.bashrc ou ~/.zshrc:
-echo 'export GEMINI_API_KEY="sua_chave_aqui"' >> ~/.bashrc
-source ~/.bashrc
-```
-
----
-
-## 🎯 Uso
-
-### Iniciar o servidor
+macOS/Linux:
 
 ```bash
-python app.py
+cd backend
+./start_backend.sh
 ```
 
-O servidor estará disponível em `http://localhost:5000`
+Backend disponível em `http://127.0.0.1:8000`.
 
----
+### 7. Inicie o frontend
 
-## 📡 Endpoints da API
+Windows PowerShell:
 
-### 1. Download de mídia do Instagram
+```powershell
+cd frontend
+./start_frontend.ps1
+```
+
+Windows CMD:
+
+```cmd
+cd frontend
+start_frontend.bat
+```
+
+macOS/Linux:
 
 ```bash
-POST /api/download
-Content-Type: application/json
-
-{
-  "url": "https://www.instagram.com/p/ABC123/"
-}
+cd frontend
+./start_frontend.sh
 ```
 
-**Resposta:**
-```json
-{
-  "success": true,
-  "media": [
-    {
-      "type": "video",
-      "url": "https://...",
-      "quality": "1080p"
-    }
-  ],
-  "metadata": {
-    "title": "...",
-    "author": "..."
-  }
-}
+Frontend disponível em `http://localhost:3000`.
+
+### 8. Inicialização rápida no Windows
+
+Na raiz do projeto:
+
+```powershell
+./start-local.ps1
 ```
 
----
+Ou:
 
-### 2. Upload de arquivo para transcrição
+```cmd
+start-local.bat
+```
+
+## Instalação automática no Windows
+
+Se você for entregar o projeto para outra pessoa em um PC Windows, use estes scripts na raiz do projeto:
+
+```powershell
+./install-windows.ps1
+```
+
+Ou com duplo clique:
+
+```cmd
+install-windows.bat
+```
+
+O instalador faz o seguinte:
+
+- instala Python 3.10, Node.js LTS e ffmpeg via `winget` quando estiverem ausentes;
+- cria `venv` local;
+- instala as dependências do backend;
+- instala as dependências do frontend com `npm ci`;
+- copia `backend/.env.example` para `backend/.env` se necessário;
+- copia `frontend/.env.example` para `frontend/.env.local` se necessário.
+
+Depois da instalação, rode a validação completa:
+
+```powershell
+./build-release.ps1
+```
+
+Ou:
+
+```cmd
+build-release.bat
+```
+
+Esse script executa:
+
+- testes do backend com `pytest`;
+- build de produção do frontend com `next build`.
+
+Para abrir a aplicação já em modo de produção no computador do usuário:
+
+```powershell
+./run-local-prod.ps1
+```
+
+Ou:
+
+```cmd
+run-local-prod.bat
+```
+
+Esse comando abre backend e frontend em janelas separadas e tenta abrir o navegador em `http://127.0.0.1:3000`.
+
+## Configuração com Docker Compose
+
+1. Copie `backend/.env.example` para `backend/.env`.
+2. Ajuste as chaves e parâmetros necessários.
+3. Suba os serviços:
 
 ```bash
-POST /api/upload-file
-Content-Type: multipart/form-data
-
-file: <arquivo de áudio ou vídeo>
+docker compose up --build
 ```
 
-**Formatos suportados:**
-- **Áudio:** MP3, WAV, AAC, OGG, M4A, FLAC, WMA
-- **Vídeo:** MP4, AVI, MOV, MKV, FLV, WEBM, WMV
+Endpoints:
 
-**Resposta:**
-```json
-{
-  "success": true,
-  "file_id": "uuid-do-arquivo",
-  "transcribe_url": "/api/transcribe/uuid-do-arquivo",
-  "download_url": "/api/download-mp3/uuid-do-arquivo",
-  "filename": "transcription_123456789.mp3",
-  "size": "5.2 MB",
-  "duration": "3:25"
-}
-```
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:8000`
 
----
+## Como usar a aplicação
 
-### 3. Transcrição de áudio
+1. Abra `http://localhost:3000`.
+2. Vá para `Upload e processamento`.
+3. Envie um arquivo de áudio ou vídeo.
+4. Aguarde a evolução do status na tela de detalhe.
+5. Quando a transcrição concluir, selecione um modelo ou escreva um pedido livre.
+6. Gere o relatório e baixe em `.txt` ou `.md`.
+
+## Ordem de fallback da transcrição
+
+1. OpenAI.
+2. Gemini.
+3. Whisper local.
+
+O backend grava a engine usada no processo e retorna essa informação para o frontend.
+
+## Endpoints principais
+
+- `POST /api/uploads`
+- `GET /api/uploads`
+- `GET /api/uploads/{id}`
+- `DELETE /api/uploads/{id}`
+- `POST /api/process/{id}`
+- `GET /api/transcriptions/{id}`
+- `POST /api/reports/generate`
+- `GET /api/uploads/{id}/reports`
+- `GET /api/report-templates`
+- `POST /api/report-templates`
+- `PUT /api/report-templates/{id}`
+- `DELETE /api/report-templates/{id}`
+- `POST /api/report-templates/{id}/duplicate`
+- `GET /api/history`
+- `GET /api/settings`
+- `PUT /api/settings`
+- `GET /api/health`
+
+## Como testar OpenAI
+
+1. Defina `OPENAI_API_KEY` em `backend/.env` ou pela tela de configurações.
+2. Inicie backend e frontend.
+3. Faça upload de um arquivo curto.
+4. No detalhe do processo, confirme que a engine exibida foi `openai`.
+
+## Como testar Gemini
+
+1. Deixe `OPENAI_API_KEY` vazia.
+2. Defina `GEMINI_API_KEY`.
+3. Reprocesse um arquivo novo.
+4. Verifique que a engine exibida foi `gemini`.
+
+## Como testar Whisper local
+
+1. Deixe `OPENAI_API_KEY` e `GEMINI_API_KEY` vazias.
+2. Defina `WHISPER_MODEL=medium` ou outro modelo suportado.
+3. Faça upload de um arquivo.
+4. Confirme que a engine exibida foi `whisper`.
+
+## Testes automatizados
+
+Na raiz do backend:
 
 ```bash
-POST /api/transcribe/<file_id>
-Content-Type: application/json
-
-{
-  "method": "auto",    // "auto", "whisper", ou "gemini"
-  "language": "pt",    // Código do idioma (pt, en, es, etc.)
-  "prompt": "Transcreva este áudio com pontuação adequada"  // Opcional, apenas para Gemini
-}
+pytest
 ```
 
-**Parâmetros:**
+Cobertura mínima implementada:
 
-- `method`:
-  - `auto` (padrão): Tenta Gemini primeiro, depois Whisper
-  - `whisper`: Usa apenas Whisper (local, sem API key)
-  - `gemini`: Usa apenas Gemini (requer API key)
+- validação e detecção de mídia;
+- utilitário de ffmpeg;
+- fallback de transcrição;
+- CRUD de templates;
+- geração de relatório.
 
-- `language`: Código ISO do idioma (pt, en, es, fr, etc.)
+## Limitações conhecidas
 
-- `prompt`: (Opcional) Instrução customizada para o Gemini
-  - Exemplo: "Transcreva este áudio e identifique os falantes"
-  - Exemplo: "Faça um resumo detalhado deste áudio"
+- O processamento assíncrono atual roda em background no mesmo processo do FastAPI. Para alto volume, o próximo passo é migrar para uma fila dedicada.
+- O relatório usa fallback local simples quando nenhuma API de IA está disponível.
+- Exportação para DOCX/PDF ainda não está implementada.
+- Não há autenticação nem multiusuário nesta etapa.
 
-**Resposta (sucesso):**
-```json
-{
-  "success": true,
-  "text": "Transcrição completa do áudio...",
-  "method": "gemini",
-  "model": "gemini-2.0-flash-exp",
-  "language": "pt"
-}
+## Evolução futura já preparada
+
+- login local simples;
+- múltiplos usuários;
+- fila de processamento;
+- exportação DOCX/PDF;
+- empacotamento desktop com Electron ou Tauri.
+
+## Comandos exatos para rodar localmente
+
+### Backend
+
+```powershell
+cd backend
+..\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-**Resposta (erro):**
-```json
-{
-  "success": false,
-  "error": "GEMINI_API_KEY não configurada",
-  "method": "gemini"
-}
+### Frontend
+
+```powershell
+cd frontend
+npm run dev
 ```
 
----
+### Testes do backend
 
-### 4. Transcrição direta (sem salvar)
-
-Para transcrição rápida sem salvar o arquivo permanentemente:
-
-```bash
-POST /api/transcribe-direct
-Content-Type: multipart/form-data
-
-file: <arquivo>
-method: auto
-language: pt
-prompt: Transcreva este áudio  (opcional)
+```powershell
+cd backend
+..\venv\Scripts\python.exe -m pytest
 ```
 
----
+## Fluxo recomendado para entregar a outro usuário no Windows
 
-### 5. Conversão de vídeo para MP3
-
-```bash
-POST /api/convert-to-mp3
-Content-Type: application/json
+1. Envie a pasta do projeto.
+2. Peça para a pessoa executar `install-windows.bat` uma vez.
+3. Depois execute `build-release.bat` para validar a instalação.
+4. Para uso diário, execute `run-local-prod.bat`.
 
 {
   "video_url": "https://...",

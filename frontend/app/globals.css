@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-mesh text-ink antialiased;
+}
+
+a {
+  @apply text-inherit no-underline;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.panel {
+  @apply rounded-3xl border border-black/5 bg-white/90 shadow-panel backdrop-blur;
+}
+
+.field {
+  @apply w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none transition focus:border-tide focus:ring-2 focus:ring-tide/20;
+}
+
+.button-primary {
+  @apply inline-flex items-center justify-center rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white transition hover:bg-tide disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.button-secondary {
+  @apply inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white px-5 py-3 text-sm font-medium text-ink transition hover:border-tide hover:text-tide;
+}
+
+.button-danger {
+  @apply inline-flex items-center justify-center rounded-2xl border border-ember/20 bg-ember/10 px-4 py-2 text-sm font-medium text-ember transition hover:bg-ember hover:text-white;
+}

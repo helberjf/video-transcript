@@ -24,6 +24,11 @@ wheels/
 venv/
 env/
 ENV/
+frontend/node_modules/
+frontend/.next/
+backend/.pytest_cache/
+backend/data/
+storage/
 
 # IDE
 .vscode/
@@ -59,3 +64,4 @@ models/
 
 cookies.txt
 cookies.txt.bak
+
