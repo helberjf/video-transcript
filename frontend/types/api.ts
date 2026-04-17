@@ -60,6 +60,7 @@ export interface ReportTemplate {
   description: string;
   category: string;
   base_prompt: string;
+  example_output: string | null;
   complementary_instructions: string | null;
   output_format: ReportFormat;
   is_favorite: boolean;

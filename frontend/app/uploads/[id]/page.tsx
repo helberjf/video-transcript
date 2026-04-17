@@ -23,8 +23,23 @@ export default function UploadDetailPage() {
   const [reportError, setReportError] = useState<string | null>(null);
 
   useEffect(() => {
-    void getTemplates().then(setTemplates).catch(() => undefined);
+    void getTemplates()
+      .then((items) => {
+        setTemplates(items);
+        if (!templateId) {
+          const favorite = items.find((template) => template.is_favorite);
+          if (favorite) {
+            setTemplateId(favorite.id);
+          }
+        }
+      })
+      .catch(() => undefined);
   }, []);
+
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === templateId) ?? null,
+    [templateId, templates],
+  );
 
   const createReport = async () => {
     setSubmitting(true);
@@ -91,7 +106,28 @@ export default function UploadDetailPage() {
                       <option key={template.id} value={template.id}>{template.name}</option>
                     ))}
                   </select>
-                  <textarea className="field min-h-28" value={customRequest} onChange={(event) => setCustomRequest(event.target.value)} placeholder="Ex.: Gere um resumo executivo com riscos e próximos passos." />
+
+                  {selectedTemplate ? (
+                    <div className="rounded-3xl bg-canvas/80 p-4 text-sm text-ink">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Modelo aplicado</p>
+                      <p className="mt-2 font-medium">{selectedTemplate.name}</p>
+                      <p className="mt-2 text-slate">{selectedTemplate.description}</p>
+                      <div className="mt-4 grid gap-4">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Objetivo</p>
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-white p-3 text-xs leading-6 text-ink">{selectedTemplate.base_prompt}</pre>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Estrutura que a IA vai preencher</p>
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-white p-3 text-xs leading-6 text-ink">
+                            {selectedTemplate.example_output ?? "Esse modelo não tem exemplo salvo. A IA vai usar apenas o prompt."}
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <textarea className="field min-h-28" value={customRequest} onChange={(event) => setCustomRequest(event.target.value)} placeholder="Ex.: mantenha o modelo, destaque riscos e próximos passos." />
                   <textarea className="field min-h-24" value={additionalInstructions} onChange={(event) => setAdditionalInstructions(event.target.value)} placeholder="Instruções adicionais opcionais" />
                   <button className="button-primary w-full" type="button" disabled={submitting || !upload.transcription_text} onClick={() => void createReport()}>
                     {submitting ? "Gerando relatório..." : "Gerar relatório"}

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
-from app.core.database import Base, SessionLocal, engine
+from app.core.database import Base, SessionLocal, engine, run_startup_migrations
 from app.services.seed_service import seed_report_templates
 
 
@@ -22,6 +22,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    run_startup_migrations()
     db = SessionLocal()
     try:
         seed_report_templates(db)

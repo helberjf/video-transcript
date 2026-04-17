@@ -11,6 +11,7 @@ const emptyForm = {
   description: "",
   category: "",
   base_prompt: "",
+  example_output: "",
   complementary_instructions: "",
   output_format: "markdown",
   is_favorite: false,
@@ -35,15 +36,25 @@ export default function TemplatesPage() {
     void load();
   }, []);
 
+  const resetForm = () => {
+    setForm(emptyForm);
+    setEditingId(null);
+  };
+
   const submit = async () => {
+    const payload = {
+      ...form,
+      example_output: form.example_output || null,
+      complementary_instructions: form.complementary_instructions || null,
+    };
+
     try {
       if (editingId) {
-        await updateTemplate(editingId, form);
+        await updateTemplate(editingId, payload);
       } else {
-        await createTemplate(form);
+        await createTemplate(payload);
       }
-      setForm(emptyForm);
-      setEditingId(null);
+      resetForm();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao salvar modelo");
@@ -54,21 +65,37 @@ export default function TemplatesPage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Modelos"
-        title="CRUD completo de modelos de relatório"
-        description="Crie modelos com prompt base, categoria, instruções complementares e formato de saída. Você pode editar, excluir, duplicar e favoritar itens diretamente daqui."
+        title="Modelos que a IA analisa e preenche"
+        description="Crie um prompt com o objetivo do relatório e cole um modelo-exemplo. Na geração, a IA vai analisar essa estrutura e preencher cada seção com base na transcrição do áudio."
       />
 
       {error ? <div className="panel p-6 text-sm text-ember">{error}</div> : null}
 
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <section className="panel p-6">
           <h3 className="text-xl font-semibold">{editingId ? "Editar modelo" : "Novo modelo"}</h3>
           <div className="mt-5 space-y-4">
-            <input className="field" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nome" />
-            <input className="field" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Descrição" />
+            <input className="field" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nome do modelo" />
+            <input className="field" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Descrição curta do uso desse modelo" />
             <input className="field" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} placeholder="Categoria" />
-            <textarea className="field min-h-32" value={form.base_prompt} onChange={(event) => setForm((current) => ({ ...current, base_prompt: event.target.value }))} placeholder="Prompt base" />
-            <textarea className="field min-h-24" value={form.complementary_instructions} onChange={(event) => setForm((current) => ({ ...current, complementary_instructions: event.target.value }))} placeholder="Instruções complementares" />
+            <textarea
+              className="field min-h-28"
+              value={form.base_prompt}
+              onChange={(event) => setForm((current) => ({ ...current, base_prompt: event.target.value }))}
+              placeholder="Explique para a IA o objetivo do relatório e o que ela deve extrair da transcrição."
+            />
+            <textarea
+              className="field min-h-40"
+              value={form.example_output}
+              onChange={(event) => setForm((current) => ({ ...current, example_output: event.target.value }))}
+              placeholder="Cole aqui um modelo pronto, com a estrutura que a IA deve seguir ao preencher o relatório."
+            />
+            <textarea
+              className="field min-h-24"
+              value={form.complementary_instructions}
+              onChange={(event) => setForm((current) => ({ ...current, complementary_instructions: event.target.value }))}
+              placeholder="Instruções complementares, por exemplo: marque campos ausentes como 'Não informado na transcrição'."
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <select className="field" value={form.output_format} onChange={(event) => setForm((current) => ({ ...current, output_format: event.target.value }))}>
                 <option value="markdown">Markdown</option>
@@ -81,7 +108,7 @@ export default function TemplatesPage() {
             </div>
             <div className="flex flex-wrap gap-3">
               <button className="button-primary" type="button" onClick={() => void submit()}>{editingId ? "Salvar alterações" : "Criar modelo"}</button>
-              <button className="button-secondary" type="button" onClick={() => { setForm(emptyForm); setEditingId(null); }}>Limpar</button>
+              <button className="button-secondary" type="button" onClick={resetForm}>Limpar</button>
             </div>
           </div>
         </section>
@@ -109,6 +136,7 @@ export default function TemplatesPage() {
                         description: template.description,
                         category: template.category,
                         base_prompt: template.base_prompt,
+                        example_output: template.example_output ?? "",
                         complementary_instructions: template.complementary_instructions ?? "",
                         output_format: template.output_format,
                         is_favorite: template.is_favorite,
@@ -132,7 +160,19 @@ export default function TemplatesPage() {
                   </button>
                 </div>
               </div>
-              <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-canvas/80 p-4 text-xs leading-6 text-ink">{template.base_prompt}</pre>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl bg-canvas/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Objetivo para a IA</p>
+                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-6 text-ink">{template.base_prompt}</pre>
+                </div>
+                <div className="rounded-2xl bg-canvas/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Modelo-exemplo</p>
+                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-6 text-ink">
+                    {template.example_output ?? "Sem modelo-exemplo salvo. A IA usará apenas o prompt."}
+                  </pre>
+                </div>
+              </div>
             </article>
           ))}
         </section>

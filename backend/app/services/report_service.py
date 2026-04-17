@@ -12,18 +12,32 @@ from app.schemas.report import GenerateReportRequest
 from app.services.settings_service import get_effective_provider_settings
 
 
-def build_report_prompt(transcription: str, template_prompt: str | None, custom_request: str | None, additional_instructions: str | None) -> str:
+def build_report_prompt(
+    transcription: str,
+    template_prompt: str | None,
+    example_output: str | None,
+    custom_request: str | None,
+    additional_instructions: str | None,
+) -> str:
     sections = [
         "Você vai gerar um relatório estruturado a partir de uma transcrição.",
+        "Use apenas informações presentes na transcrição. Não invente fatos, nomes, datas ou números.",
+        "Se o modelo pedir um campo ausente, escreva 'Não informado na transcrição'.",
         f"Transcrição base:\n{transcription}",
     ]
     if template_prompt:
-        sections.append(f"Modelo base:\n{template_prompt}")
+        sections.append(f"Objetivo do modelo:\n{template_prompt}")
+    if example_output:
+        sections.append(
+            "Modelo de referência para ser analisado e seguido na estrutura final:\n"
+            f"{example_output}\n\n"
+            "Copie a organização, a ordem das seções e o estilo dos títulos, mas preencha o conteúdo usando somente a transcrição."
+        )
     if custom_request:
         sections.append(f"Pedido do usuário:\n{custom_request}")
     if additional_instructions:
         sections.append(f"Instruções adicionais:\n{additional_instructions}")
-    sections.append("Entregue em formato limpo, com títulos e subtítulos quando fizer sentido.")
+    sections.append("Entregue o relatório final pronto para uso, já preenchido com base na transcrição.")
     return "\n\n".join(sections)
 
 
@@ -84,6 +98,7 @@ def generate_report(db: Session, payload: GenerateReportRequest) -> GeneratedRep
     prompt = build_report_prompt(
         transcription=upload.transcription_text,
         template_prompt=template.base_prompt if template else None,
+        example_output=template.example_output if template else None,
         custom_request=payload.custom_request,
         additional_instructions=payload.additional_instructions or (template.complementary_instructions if template else None),
     )

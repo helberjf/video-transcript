@@ -11,6 +11,7 @@ class ReportTemplateCreate(BaseModel):
     description: str = Field(min_length=3, max_length=255)
     category: str = Field(min_length=2, max_length=100)
     base_prompt: str = Field(min_length=10)
+    example_output: str | None = Field(default=None, min_length=10)
     complementary_instructions: str | None = None
     output_format: ReportFormat = ReportFormat.MARKDOWN
     is_favorite: bool = False
@@ -21,6 +22,7 @@ class ReportTemplateUpdate(BaseModel):
     description: str | None = Field(default=None, min_length=3, max_length=255)
     category: str | None = Field(default=None, min_length=2, max_length=100)
     base_prompt: str | None = Field(default=None, min_length=10)
+    example_output: str | None = Field(default=None, min_length=10)
     complementary_instructions: str | None = None
     output_format: ReportFormat | None = None
     is_favorite: bool | None = None
@@ -32,6 +34,7 @@ class ReportTemplateRead(ORMModel):
     description: str
     category: str
     base_prompt: str
+    example_output: str | None
     complementary_instructions: str | None
     output_format: ReportFormat
     is_favorite: bool
