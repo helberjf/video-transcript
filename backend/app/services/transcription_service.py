@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,9 @@ class TranscriptionResult:
     metadata: dict[str, Any]
 
 
+TranscriptionProviderName = Literal["openai", "gemini", "whisper"]
+
+
 def _run_with_retries(func: Callable[[], TranscriptionResult], retries: int) -> TranscriptionResult:
     last_error: Exception | None = None
     for attempt in range(retries + 1):
@@ -40,6 +43,15 @@ def _language_hint(language: str | None) -> str | None:
         return None
     normalized = language.split("-")[0].strip().lower()
     return normalized or None
+
+
+def _normalize_provider(provider: str | None) -> TranscriptionProviderName | None:
+    if not provider:
+        return None
+    normalized = provider.strip().lower()
+    if normalized in {"openai", "gemini", "whisper"}:
+        return normalized
+    return None
 
 
 def _transcribe_openai(audio_path: Path, language: str | None, api_key: str) -> TranscriptionResult:
@@ -108,25 +120,74 @@ def _transcribe_whisper(audio_path: Path, language: str | None, model_name: str)
     )
 
 
-def transcribe_audio(db: Session, audio_path: str | Path, language: str | None = None) -> TranscriptionResult:
+def _configured_transcription_provider_order(config: dict[str, Any]) -> list[TranscriptionProviderName]:
+    raw_order = config.get("transcription_provider_order")
+    if isinstance(raw_order, list):
+        normalized = [_normalize_provider(str(item)) for item in raw_order]
+        filtered = [item for item in normalized if item is not None]
+        if filtered:
+            return filtered
+
+    return ["openai", "gemini", "whisper"]
+
+
+def _transcription_provider_order(
+    config: dict[str, Any],
+    use_api: bool,
+    preferred_provider: str | None = None,
+) -> list[TranscriptionProviderName]:
+    if not use_api:
+        return ["whisper"]
+
+    normalized_preference = _normalize_provider(preferred_provider)
+    if normalized_preference == "whisper":
+        return ["whisper"]
+
+    configured_order = _configured_transcription_provider_order(config)
+    if normalized_preference is None:
+        return configured_order
+
+    return [normalized_preference, *[provider for provider in configured_order if provider != normalized_preference]]
+
+
+def transcribe_audio(
+    db: Session,
+    audio_path: str | Path,
+    language: str | None = None,
+    *,
+    use_api: bool = True,
+    whisper_model_override: str | None = None,
+    transcription_provider_preference: str | None = None,
+) -> TranscriptionResult:
     settings = get_settings()
     config = get_effective_provider_settings(db)
     target_path = Path(audio_path)
     retries = settings.provider_retries
 
-    openai_key = config.get("openai_api_key")
-    if isinstance(openai_key, str) and openai_key:
-        try:
-            return _run_with_retries(lambda: _transcribe_openai(target_path, language, openai_key), retries)
-        except Exception:
-            pass
+    for provider in _transcription_provider_order(
+        config,
+        use_api=use_api,
+        preferred_provider=transcription_provider_preference,
+    ):
+        if provider == "openai":
+            openai_key = config.get("openai_api_key")
+            if isinstance(openai_key, str) and openai_key:
+                try:
+                    return _run_with_retries(lambda: _transcribe_openai(target_path, language, openai_key), retries)
+                except Exception:
+                    continue
 
-    gemini_key = config.get("gemini_api_key")
-    if isinstance(gemini_key, str) and gemini_key:
-        try:
-            return _run_with_retries(lambda: _transcribe_gemini(target_path, language, gemini_key), retries)
-        except Exception:
-            pass
+        if provider == "gemini":
+            gemini_key = config.get("gemini_api_key")
+            if isinstance(gemini_key, str) and gemini_key:
+                try:
+                    return _run_with_retries(lambda: _transcribe_gemini(target_path, language, gemini_key), retries)
+                except Exception:
+                    continue
 
-    whisper_model = str(config.get("whisper_model") or settings.whisper_model)
+        if provider == "whisper":
+            whisper_model = whisper_model_override or str(config.get("whisper_model") or settings.whisper_model)
+            return _run_with_retries(lambda: _transcribe_whisper(target_path, language, whisper_model), retries)
+
+    whisper_model = whisper_model_override or str(config.get("whisper_model") or settings.whisper_model)
     return _run_with_retries(lambda: _transcribe_whisper(target_path, language, whisper_model), retries)

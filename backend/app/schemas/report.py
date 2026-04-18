@@ -14,6 +14,10 @@ class GenerateReportRequest(BaseModel):
     title: str = Field(default="Relatório gerado", min_length=3, max_length=160)
 
 
+class ReportRenameRequest(BaseModel):
+    title: str = Field(min_length=3, max_length=160)
+
+
 class ReportRead(ORMModel):
     id: str
     upload_id: str

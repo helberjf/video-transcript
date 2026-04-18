@@ -1,19 +1,46 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SectionHeader } from "@/components/section-header";
+import {
+  getDefaultTranscriptionProvider,
+  LANGUAGE_OPTIONS,
+  TRANSCRIPTION_PROVIDER_LABELS,
+  WHISPER_MODEL_OPTIONS,
+} from "@/lib/transcription-options";
 import { formatBytes } from "@/lib/utils";
-import { startProcessing, uploadFile } from "@/services/api";
+import { getSettings, startProcessing, uploadFile } from "@/services/api";
+import type { TranscriptionProvider } from "@/types/api";
 
 export default function UploadPage() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState("pt-BR");
+  const [useApi, setUseApi] = useState(true);
+  const [whisperModel, setWhisperModel] = useState("medium");
+  const [transcriptionProvider, setTranscriptionProvider] = useState<TranscriptionProvider>("openai");
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getSettings()
+      .then((settings) => {
+        setLanguage(settings.preferred_language);
+        setWhisperModel(settings.whisper_model);
+        setTranscriptionProvider(getDefaultTranscriptionProvider(settings.transcription_provider_order));
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const effectiveTranscriptionProvider: TranscriptionProvider = useApi ? transcriptionProvider : "whisper";
+  const transcriptionProviderDescription = !useApi
+    ? "Com APIs desligadas, o processamento vai direto para o Whisper local selecionado."
+    : transcriptionProvider === "whisper"
+      ? "A transcrição começa direto no Whisper local selecionado."
+      : `Primeira tentativa com ${TRANSCRIPTION_PROVIDER_LABELS[transcriptionProvider]}. Se essa API não estiver configurada ou falhar, o app segue a ordem salva nas configurações.`;
 
   const submit = async () => {
     if (!file) {
@@ -25,7 +52,12 @@ export default function UploadPage() {
     setError(null);
     try {
       const upload = await uploadFile(file, setProgress);
-      await startProcessing(upload.id, language);
+      await startProcessing(upload.id, {
+        language,
+        use_api: useApi,
+        whisper_model: whisperModel,
+        transcription_provider: effectiveTranscriptionProvider,
+      });
       router.push(`/uploads/${upload.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao iniciar processamento");
@@ -38,10 +70,10 @@ export default function UploadPage() {
       <SectionHeader
         eyebrow="Upload"
         title="Envie a mídia e dispare o pipeline"
-        description="Vídeos são convertidos para MP3 de alta qualidade; áudios são normalizados antes da transcrição. O backend executa o fallback OpenAI → Gemini → Whisper automaticamente."
+        description="Escolha o arquivo, configure o idioma e o modelo Whisper, e envie."
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="max-w-2xl">
         <section className="panel p-6">
           <div className="space-y-5">
             <div>
@@ -56,8 +88,41 @@ export default function UploadPage() {
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium">Idioma preferido</label>
-              <input className="field" value={language} onChange={(event) => setLanguage(event.target.value)} placeholder="pt-BR" />
+              <select className="field" value={language} onChange={(event) => setLanguage(event.target.value)}>
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium">Modelo Whisper</label>
+              <select className="field" value={whisperModel} onChange={(event) => setWhisperModel(event.target.value)}>
+                {WHISPER_MODEL_OPTIONS.map((model) => (
+                  <option key={model} value={model}>{model}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium">IA para transcrever</label>
+              <select
+                className="field"
+                value={transcriptionProvider}
+                onChange={(event) => setTranscriptionProvider(event.target.value as TranscriptionProvider)}
+                disabled={!useApi}
+              >
+                {Object.entries(TRANSCRIPTION_PROVIDER_LABELS).map(([provider, label]) => (
+                  <option key={provider} value={provider}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <label className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm font-medium text-ink">
+              <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
+              Usar APIs externas quando disponíveis
+            </label>
             <button className="button-primary w-full" type="button" disabled={busy} onClick={() => void submit()}>
               {busy ? "Enviando e iniciando processamento..." : "Enviar arquivo"}
             </button>
@@ -70,28 +135,6 @@ export default function UploadPage() {
               </div>
             ) : null}
             {error ? <p className="rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{error}</p> : null}
-          </div>
-        </section>
-
-        <section className="panel p-6">
-          <h3 className="text-xl font-semibold">O que acontece depois</h3>
-          <div className="mt-5 space-y-4 text-sm text-slate">
-            <div className="rounded-3xl bg-canvas/80 p-4">
-              <p className="font-medium text-ink">1. Validação</p>
-              <p className="mt-1">O backend valida extensão, MIME type e tamanho antes de persistir o arquivo.</p>
-            </div>
-            <div className="rounded-3xl bg-canvas/80 p-4">
-              <p className="font-medium text-ink">2. Conversão e normalização</p>
-              <p className="mt-1">Vídeos viram MP3 em 320 kbps, 44.1 kHz, estéreo. Áudios podem ser normalizados para o mesmo padrão.</p>
-            </div>
-            <div className="rounded-3xl bg-canvas/80 p-4">
-              <p className="font-medium text-ink">3. Transcrição com fallback</p>
-              <p className="mt-1">OpenAI primeiro, Gemini se falhar e Whisper local como última opção.</p>
-            </div>
-            <div className="rounded-3xl bg-canvas/80 p-4">
-              <p className="font-medium text-ink">4. Relatórios</p>
-              <p className="mt-1">Depois da transcrição, você escolhe um modelo e gera o relatório a partir do texto final.</p>
-            </div>
           </div>
         </section>
       </div>

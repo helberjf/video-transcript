@@ -29,10 +29,14 @@ class Settings(BaseSettings):
     whisper_model: str = "medium"
     openai_api_key: str | None = None
     gemini_api_key: str | None = None
+    claude_api_key: str | None = None
     openai_transcription_model: str = "gpt-4o-mini-transcribe"
     openai_report_model: str = "gpt-4.1-mini"
     gemini_transcription_model: str = "gemini-2.5-flash"
     gemini_report_model: str = "gemini-2.5-flash"
+    claude_report_model: str = "claude-3-5-sonnet-latest"
+    transcription_provider_order: str = "openai,gemini,whisper"
+    report_provider_order: str = "openai,claude,gemini,local"
     provider_timeout_seconds: int = 120
     provider_retries: int = 2
 

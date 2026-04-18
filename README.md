@@ -11,6 +11,7 @@ Os arquivos legados na raiz, como `app.py`, permanecem como protótipo anterior.
 - Transcrição: OpenAI primeiro, Gemini em fallback e Whisper local por último.
 - Relatórios: geração a partir da transcrição, com CRUD de templates e exportação em `.md` ou `.txt`.
 - Persistência: SQLite para uploads, transcrições, relatórios, templates e configurações.
+- Banco local pronto para uso pessoal: o app já sobe com SQLite em `data/app.db`, sem instalar servidor de banco.
 
 ## Estrutura principal
 
@@ -255,6 +256,19 @@ run-local-prod.bat
 ```
 
 Esse comando abre backend e frontend em janelas separadas e tenta abrir o navegador em `http://127.0.0.1:3000`.
+
+## Compartilhar com um amigo no Windows
+
+Se você enviar a pasta do projeto para outra pessoa, ela pode seguir só estes três arquivos da raiz, na ordem:
+
+1. `1-instalar-programas-base.bat`
+  Instala ou verifica Python 3.10, Node.js LTS e ffmpeg via `winget`.
+2. `2-preparar-aplicacao.bat`
+  Cria a `venv`, instala dependências Python e Node e copia os arquivos de ambiente padrão.
+3. `3-iniciar-aplicacao.bat`
+  Sobe backend e frontend em modo local de produção e abre o navegador.
+
+Esse fluxo foi pensado para uso pessoal/local com SQLite. Não exige PostgreSQL, MySQL ou outro banco externo.
 
 ## Configuração com Docker Compose
 

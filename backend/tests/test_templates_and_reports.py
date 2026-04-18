@@ -41,6 +41,7 @@ def test_template_crud_and_duplicate(tmp_path, monkeypatch) -> None:
 
 def test_generate_report_uses_local_fallback_when_no_provider_key(tmp_path, monkeypatch) -> None:
     session, engine = create_test_session(tmp_path)
+    export_dir = tmp_path / "exports"
     upload = Upload(
         original_filename="audio.mp3",
         stored_filename="audio.mp3",
@@ -62,7 +63,7 @@ def test_generate_report_uses_local_fallback_when_no_provider_key(tmp_path, monk
         lambda db: {
             "openai_api_key": None,
             "gemini_api_key": None,
-            "export_directory": str(tmp_path / "exports"),
+            "export_directory": str(export_dir),
         },
     )
 
@@ -79,6 +80,10 @@ def test_generate_report_uses_local_fallback_when_no_provider_key(tmp_path, monk
 
     assert report.generator_engine == TranscriptionEngine.NONE
     assert "Resumo local" in report.content
+    assert (export_dir / f"{report.id}.md").exists()
+    assert (export_dir / f"{report.id}.docx").exists()
+    assert (export_dir / f"{report.id}.pdf").exists()
+    assert (export_dir / f"{report.id}.pdf").stat().st_size > 0
 
     session.close()
     engine.dispose()
@@ -148,6 +153,60 @@ def test_generate_report_prompt_uses_template_example(tmp_path, monkeypatch) -> 
     assert "Modelo de referência" in captured["prompt"]
     assert "## Responsável" in captured["prompt"]
     assert "Não informado na transcrição" in captured["prompt"]
+
+    session.close()
+    engine.dispose()
+
+
+def test_generate_report_can_prioritize_claude_and_rename(tmp_path, monkeypatch) -> None:
+    session, engine = create_test_session(tmp_path)
+    upload = Upload(
+        original_filename="audio.mp3",
+        stored_filename="audio.mp3",
+        file_type=FileType.AUDIO,
+        mime_type="audio/mpeg",
+        original_path=str(tmp_path / "audio.mp3"),
+        upload_size_bytes=10,
+        transcription_text="Conteúdo transcrito para relatório com Claude.",
+        transcription_engine=TranscriptionEngine.WHISPER,
+        status=ProcessingStatus.COMPLETED,
+    )
+    session.add(upload)
+    session.commit()
+    session.refresh(upload)
+
+    monkeypatch.setattr(
+        report_service,
+        "get_effective_provider_settings",
+        lambda db: {
+            "openai_api_key": "sk-test",
+            "gemini_api_key": "gm-test",
+            "claude_api_key": "cl-test",
+            "report_provider_order": ["claude", "openai", "gemini", "local"],
+            "export_directory": str(tmp_path / "exports"),
+        },
+    )
+    monkeypatch.setattr(
+        report_service,
+        "_generate_claude",
+        lambda prompt, api_key: ("# Relatório\n\nGerado pelo Claude", TranscriptionEngine.CLAUDE),
+    )
+
+    report = generate_report(
+        session,
+        GenerateReportRequest(
+            upload_id=upload.id,
+            template_id=None,
+            custom_request="Use Claude primeiro.",
+            additional_instructions=None,
+            title="Relatório Claude",
+        ),
+    )
+
+    assert report.generator_engine == TranscriptionEngine.CLAUDE
+
+    renamed = report_service.rename_report(session, report.id, "Título atualizado")
+    assert renamed.title == "Título atualizado"
 
     session.close()
     engine.dispose()

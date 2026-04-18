@@ -23,12 +23,32 @@ def run_startup_migrations() -> None:
         return
 
     with engine.begin() as connection:
-        columns = {
+        report_template_columns = {
             row[1]
             for row in connection.execute(text("PRAGMA table_info(report_templates)"))
         }
-        if columns and "example_output" not in columns:
+        if report_template_columns and "example_output" not in report_template_columns:
             connection.execute(text("ALTER TABLE report_templates ADD COLUMN example_output TEXT"))
+
+        system_config_columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(system_config)"))
+        }
+        if system_config_columns:
+            if "claude_api_key" not in system_config_columns:
+                connection.execute(text("ALTER TABLE system_config ADD COLUMN claude_api_key VARCHAR(255)"))
+            if "transcription_provider_order" not in system_config_columns:
+                connection.execute(
+                    text("ALTER TABLE system_config ADD COLUMN transcription_provider_order VARCHAR(120) DEFAULT 'openai,gemini,whisper' NOT NULL")
+                )
+            if "report_provider_order" not in system_config_columns:
+                connection.execute(
+                    text("ALTER TABLE system_config ADD COLUMN report_provider_order VARCHAR(120) DEFAULT 'openai,claude,gemini,local' NOT NULL")
+                )
+            if "default_report_template_id" not in system_config_columns:
+                connection.execute(text("ALTER TABLE system_config ADD COLUMN default_report_template_id VARCHAR(36)"))
+            if "updated_at" not in system_config_columns:
+                connection.execute(text("ALTER TABLE system_config ADD COLUMN updated_at DATETIME DEFAULT (datetime('now'))"))
 
 
 def get_db() -> Generator[Session, None, None]:

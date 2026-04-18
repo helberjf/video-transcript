@@ -14,6 +14,12 @@ class ReportRepository:
         self.db.refresh(report)
         return report
 
+    def save(self, report: GeneratedReport) -> GeneratedReport:
+        self.db.add(report)
+        self.db.commit()
+        self.db.refresh(report)
+        return report
+
     def list_by_upload(self, upload_id: str) -> list[GeneratedReport]:
         return list(
             self.db.scalars(

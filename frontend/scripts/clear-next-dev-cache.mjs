@@ -8,18 +8,18 @@ export function clearNextDevCache(cwd = process.cwd()) {
     return;
   }
 
-  const webpackCacheDir = join(cwd, ".next", "cache", "webpack");
+  const nextDir = join(cwd, ".next");
 
-  if (!existsSync(webpackCacheDir)) {
+  if (!existsSync(nextDir)) {
     return;
   }
 
   try {
-    rmSync(webpackCacheDir, { recursive: true, force: true });
-    console.log("Cleared stale Next.js webpack cache.");
+    rmSync(nextDir, { recursive: true, force: true });
+    console.log("Cleared stale Next.js .next build artifacts.");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn(`Could not clear Next.js webpack cache: ${message}`);
+    console.warn(`Could not clear Next.js .next build artifacts: ${message}`);
   }
 }
 

@@ -47,7 +47,15 @@ def process_upload_endpoint(
     db: Session = Depends(get_db),
 ) -> ProcessingResponse:
     upload = get_upload_or_404(db, upload_id)
-    background_tasks.add_task(process_upload, upload.id, payload.language, payload.force_reprocess)
+    background_tasks.add_task(
+        process_upload,
+        upload.id,
+        payload.language,
+        payload.force_reprocess,
+        payload.use_api,
+        payload.whisper_model,
+        payload.transcription_provider,
+    )
     return ProcessingResponse(id=upload.id, status=upload.status, message="Processamento iniciado")
 
 

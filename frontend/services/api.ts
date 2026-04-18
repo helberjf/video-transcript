@@ -1,8 +1,10 @@
 import type {
   DashboardStats,
+  ReportRenamePayload,
   ReportRead,
   ReportTemplate,
   SettingsRead,
+  StartProcessingPayload,
   TranscriptionRead,
   UploadCreateResponse,
   UploadItem,
@@ -57,10 +59,16 @@ export function uploadFile(file: File, onProgress: (value: number) => void): Pro
   });
 }
 
-export function startProcessing(uploadId: string, language: string) {
+export function startProcessing(uploadId: string, payload: StartProcessingPayload) {
   return request<{ id: string; status: string; message: string }>(`/process/${uploadId}`, {
     method: "POST",
-    body: JSON.stringify({ language, force_reprocess: false }),
+    body: JSON.stringify({
+      language: payload.language,
+      force_reprocess: payload.force_reprocess ?? false,
+      use_api: payload.use_api ?? true,
+      whisper_model: payload.whisper_model ?? null,
+      transcription_provider: payload.transcription_provider ?? null,
+    }),
   });
 }
 
@@ -121,6 +129,13 @@ export function getReportsByUpload(uploadId: string) {
 export function generateReport(payload: Record<string, unknown>) {
   return request<ReportRead>("/reports/generate", {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateReport(reportId: string, payload: ReportRenamePayload) {
+  return request<ReportRead>(`/reports/${reportId}`, {
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
 }

@@ -19,12 +19,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="panel flex flex-col gap-8 p-6 lg:min-h-[calc(100vh-3rem)] lg:sticky lg:top-6">
-          <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate">Local-first suite</p>
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Media Transcript Studio</h1>
-              <p className="mt-2 text-sm text-slate">Upload, transcreva, gere relatórios e mantenha seus modelos sem depender de uma infraestrutura complexa.</p>
-            </div>
+          <div className="space-y-1">
+            <h1 className="text-xl font-semibold tracking-tight text-ink">Media Transcript Studio</h1>
+            <p className="text-xs text-slate">Transcrição e relatórios locais com IA</p>
           </div>
           <nav className="space-y-2">
             {navigation.map((item) => {
@@ -42,10 +39,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
-          <div className="rounded-3xl bg-tide px-5 py-6 text-white">
-            <p className="text-xs uppercase tracking-[0.25em] text-white/70">Próximos passos</p>
-            <p className="mt-3 text-sm leading-6 text-white/90">A base já foi preparada para fila de processamento, múltiplos usuários e exportação futura para DOCX/PDF.</p>
-          </div>
         </aside>
         <main className="space-y-6">{children}</main>
       </div>

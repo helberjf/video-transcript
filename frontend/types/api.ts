@@ -1,7 +1,9 @@
 export type FileType = "audio" | "video";
 export type ProcessingStatus = "uploaded" | "converting" | "transcribing" | "generating_report" | "completed" | "error";
-export type Engine = "openai" | "gemini" | "whisper" | "none";
+export type Engine = "openai" | "gemini" | "claude" | "whisper" | "none";
 export type ReportFormat = "markdown" | "text";
+export type TranscriptionProvider = "openai" | "gemini" | "whisper";
+export type ReportProvider = "openai" | "claude" | "gemini" | "local";
 
 export interface UploadItem {
   id: string;
@@ -83,11 +85,26 @@ export interface ReportRead {
 export interface SettingsRead {
   openai_api_key_masked: string | null;
   gemini_api_key_masked: string | null;
+  claude_api_key_masked: string | null;
   default_report_template_id: string | null;
   whisper_model: string;
+  transcription_provider_order: TranscriptionProvider[];
+  report_provider_order: ReportProvider[];
   export_directory: string | null;
   preferred_language: string;
   max_upload_mb: number;
   auto_cleanup_temp_files: boolean;
   updated_at: string | null;
+}
+
+export interface StartProcessingPayload {
+  language: string;
+  force_reprocess?: boolean;
+  use_api?: boolean;
+  whisper_model?: string | null;
+  transcription_provider?: TranscriptionProvider | null;
+}
+
+export interface ReportRenamePayload {
+  title: string;
 }

@@ -1,3 +1,8 @@
+param(
+    [switch]$SkipToolInstallation,
+    [switch]$SkipProjectSetup
+)
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
@@ -62,25 +67,32 @@ function Resolve-PythonCommand {
     throw "Python não foi encontrado após a instalação. Feche e abra o PowerShell novamente, ou valide o PATH."
 }
 
-if (-not (Test-CommandExists "winget")) {
-    throw "winget não está disponível. Instale o App Installer da Microsoft Store e execute novamente."
-}
+if (-not $SkipToolInstallation) {
+    if (-not (Test-CommandExists "winget")) {
+        throw "winget não está disponível. Instale o App Installer da Microsoft Store e execute novamente."
+    }
 
-if (-not (Test-PythonCandidate -File "python") -and -not (Test-PythonCandidate -File "py" -Args @("-3.10")) -and -not (Test-PythonCandidate -File "py" -Args @("-3")) -and -not (Test-PythonCandidate -File "py")) {
-    Install-WingetPackage -DisplayName "Python 3.10" -PackageId "Python.Python.3.10"
-}
+    if (-not (Test-PythonCandidate -File "python") -and -not (Test-PythonCandidate -File "py" -Args @("-3.10")) -and -not (Test-PythonCandidate -File "py" -Args @("-3")) -and -not (Test-PythonCandidate -File "py")) {
+        Install-WingetPackage -DisplayName "Python 3.10" -PackageId "Python.Python.3.10"
+    }
 
-if (-not (Test-CommandExists "node")) {
-    Install-WingetPackage -DisplayName "Node.js LTS" -PackageId "OpenJS.NodeJS.LTS"
-}
+    if (-not (Test-CommandExists "node")) {
+        Install-WingetPackage -DisplayName "Node.js LTS" -PackageId "OpenJS.NodeJS.LTS"
+    }
 
-if (-not (Test-CommandExists "ffmpeg")) {
-    Install-WingetPackage -DisplayName "FFmpeg" -PackageId "Gyan.FFmpeg"
+    if (-not (Test-CommandExists "ffmpeg")) {
+        Install-WingetPackage -DisplayName "FFmpeg" -PackageId "Gyan.FFmpeg"
+    }
 }
 
 $python = Resolve-PythonCommand
 
 Set-Location $root
+
+if ($SkipProjectSetup) {
+    Write-Host "Programas base verificados/instalados. Agora execute .\2-preparar-aplicacao.bat" -ForegroundColor Green
+    return
+}
 
 if (-not (Test-Path (Join-Path $root "venv\Scripts\python.exe"))) {
     Write-Host "Criando ambiente virtual..." -ForegroundColor Cyan
@@ -89,8 +101,8 @@ if (-not (Test-Path (Join-Path $root "venv\Scripts\python.exe"))) {
 
 $venvPython = Join-Path $root "venv\Scripts\python.exe"
 
-Write-Host "Atualizando pip/setuptools/wheel..." -ForegroundColor Cyan
-& $venvPython -m pip install --upgrade pip setuptools wheel
+Write-Host "Atualizando pip/wheel e alinhando setuptools para o Whisper..." -ForegroundColor Cyan
+& $venvPython -m pip install --upgrade pip wheel "setuptools<81"
 
 if (-not (Test-Path (Join-Path $root "backend\.env")) -and (Test-Path (Join-Path $root "backend\.env.example"))) {
     Copy-Item (Join-Path $root "backend\.env.example") (Join-Path $root "backend\.env")
@@ -101,7 +113,7 @@ if (-not (Test-Path (Join-Path $root "frontend\.env.local")) -and (Test-Path (Jo
 }
 
 Write-Host "Instalando dependências do backend..." -ForegroundColor Cyan
-& $venvPython -m pip install -r (Join-Path $root "backend\requirements.txt")
+& $venvPython -m pip install --no-build-isolation -r (Join-Path $root "backend\requirements.txt")
 
 Write-Host "Instalando dependências do frontend..." -ForegroundColor Cyan
 Push-Location (Join-Path $root "frontend")
@@ -112,4 +124,9 @@ finally {
     Pop-Location
 }
 
-Write-Host "Instalação concluída. Execute .\build-release.ps1 para validar e .\run-local-prod.ps1 para abrir a aplicação." -ForegroundColor Green
+if ($SkipToolInstallation) {
+    Write-Host "Dependências do projeto prontas. Agora execute .\3-iniciar-aplicacao.bat" -ForegroundColor Green
+}
+else {
+    Write-Host "Instalação concluída. Execute .\build-release.ps1 para validar e .\run-local-prod.ps1 para abrir a aplicação." -ForegroundColor Green
+}

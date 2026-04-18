@@ -9,7 +9,14 @@ from app.utils.ffmpeg import extract_audio_to_mp3, normalize_audio, probe_durati
 from app.utils.files import safe_unlink
 
 
-def process_upload(upload_id: str, language: str | None, force_reprocess: bool = False) -> None:
+def process_upload(
+    upload_id: str,
+    language: str | None,
+    force_reprocess: bool = False,
+    use_api: bool = True,
+    whisper_model: str | None = None,
+    transcription_provider: str | None = None,
+) -> None:
     db = SessionLocal()
     repository = UploadRepository(db)
     temp_artifacts: list[Path] = []
@@ -37,7 +44,14 @@ def process_upload(upload_id: str, language: str | None, force_reprocess: bool =
         upload.status = ProcessingStatus.TRANSCRIBING
         repository.save(upload)
 
-        transcription = transcribe_audio(db, converted_path, language)
+        transcription = transcribe_audio(
+            db,
+            converted_path,
+            language,
+            use_api=use_api,
+            whisper_model_override=whisper_model,
+            transcription_provider_preference=transcription_provider,
+        )
         upload.transcription_text = transcription.text
         upload.transcription_engine = transcription.engine
         upload.language_detected = transcription.language_detected

@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { getReportsByUpload, getUpload } from "@/services/api";
 import type { ReportRead, UploadItem } from "@/types/api";
 
+const POLL_INTERVAL_MS = 3500;
+
 export function usePollUpload(uploadId: string) {
   const [upload, setUpload] = useState<UploadItem | null>(null);
   const [reports, setReports] = useState<ReportRead[]>([]);
@@ -13,7 +15,16 @@ export function usePollUpload(uploadId: string) {
 
   useEffect(() => {
     let cancelled = false;
-    let intervalId: number | undefined;
+    let timeoutId: number | undefined;
+
+    const scheduleNextPoll = () => {
+      if (cancelled) {
+        return;
+      }
+      timeoutId = window.setTimeout(() => {
+        void load();
+      }, POLL_INTERVAL_MS);
+    };
 
     const load = async () => {
       try {
@@ -21,33 +32,32 @@ export function usePollUpload(uploadId: string) {
         if (cancelled) {
           return;
         }
+
         setUpload(uploadData);
         setReports(reportData);
         setError(null);
         setLoading(false);
-        if (uploadData.status === "completed" || uploadData.status === "error") {
-          if (intervalId) {
-            window.clearInterval(intervalId);
-          }
+
+        if (uploadData.status !== "completed" && uploadData.status !== "error") {
+          scheduleNextPoll();
         }
       } catch (err) {
         if (cancelled) {
           return;
         }
+
         setError(err instanceof Error ? err.message : "Falha ao consultar processo");
         setLoading(false);
+        scheduleNextPoll();
       }
     };
 
     void load();
-    intervalId = window.setInterval(() => {
-      void load();
-    }, 3500);
 
     return () => {
       cancelled = true;
-      if (intervalId) {
-        window.clearInterval(intervalId);
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
       }
     };
   }, [uploadId]);

@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from app.models.enums import FileType, ProcessingStatus, TranscriptionEngine
 from app.schemas.common import ORMModel
+from app.schemas.settings import TranscriptionProvider
 
 
 class UploadCreateResponse(BaseModel):
@@ -37,6 +38,9 @@ class UploadDetail(ORMModel):
 class ProcessRequest(BaseModel):
     language: str = "pt-BR"
     force_reprocess: bool = False
+    use_api: bool = True
+    whisper_model: str | None = Field(default=None, min_length=2, max_length=40)
+    transcription_provider: TranscriptionProvider | None = None
 
 
 class ProcessingResponse(BaseModel):
