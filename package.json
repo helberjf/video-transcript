@@ -1,0 +1,57 @@
+{
+  "name": "media-transcript-studio-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Desktop Windows build for creating forms and reports from images, documents, audio, and video",
+  "author": "FormReport Studio",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "desktop:dev": "electron .",
+    "desktop:prepare:frontend": "node electron/scripts/prepare-frontend.cjs",
+    "desktop:prepare:backend": "node electron/scripts/build-backend.cjs",
+    "desktop:prepare:ffmpeg": "node electron/scripts/prepare-ffmpeg.cjs",
+    "desktop:prepare": "npm run desktop:prepare:frontend && npm run desktop:prepare:backend && npm run desktop:prepare:ffmpeg",
+    "desktop:pack:dir": "npm run desktop:prepare && electron-builder --dir",
+    "desktop:build": "npm run desktop:prepare && electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "br.com.media-transcript-studio",
+    "productName": "FormReport Studio",
+    "asar": true,
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/main.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/resources/backend",
+        "to": "backend"
+      },
+      {
+        "from": "electron/resources/frontend",
+        "to": "frontend"
+      },
+      {
+        "from": "electron/resources/ffmpeg",
+        "to": "ffmpeg"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
+  }
+}

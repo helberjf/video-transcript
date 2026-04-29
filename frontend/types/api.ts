@@ -4,9 +4,12 @@ export type Engine = "openai" | "gemini" | "claude" | "whisper" | "none";
 export type ReportFormat = "markdown" | "text";
 export type TranscriptionProvider = "openai" | "gemini" | "whisper";
 export type ReportProvider = "openai" | "claude" | "gemini" | "local";
+export type ReportExportExtension = "md" | "txt" | "docx" | "pdf";
+export type RemoteMediaSource = "youtube" | "instagram";
 
 export interface UploadItem {
   id: string;
+  workspace_id?: string;
   original_filename: string;
   stored_filename: string;
   file_type: FileType;
@@ -27,6 +30,7 @@ export interface UploadItem {
 
 export interface UploadCreateResponse {
   id: string;
+  workspace_id?: string;
   original_filename: string;
   file_type: FileType;
   status: ProcessingStatus;
@@ -36,6 +40,11 @@ export interface UploadCreateResponse {
 export interface UploadListResponse {
   items: UploadItem[];
   total: number;
+}
+
+export interface RemoteImportPayload {
+  source: RemoteMediaSource;
+  url: string;
 }
 
 export interface DashboardStats {
@@ -56,22 +65,57 @@ export interface TranscriptionRead {
   updated_at: string;
 }
 
+export type FormFieldType = "text" | "textarea" | "date" | "number";
+
+export interface FormFieldSpec {
+  key: string;
+  label: string;
+  type: FormFieldType;
+  placeholder: string | null;
+  required: boolean;
+  help: string | null;
+}
+
 export interface ReportTemplate {
   id: string;
+  workspace_id?: string;
   name: string;
   description: string;
   category: string;
   base_prompt: string;
   example_output: string | null;
   complementary_instructions: string | null;
+  form_fields: FormFieldSpec[] | null;
   output_format: ReportFormat;
   is_favorite: boolean;
   created_at: string;
   updated_at: string;
 }
 
+export interface TemplateReferenceAnalysis {
+  name: string;
+  description: string;
+  category: string;
+  base_prompt: string;
+  example_output: string | null;
+  complementary_instructions: string | null;
+  form_fields: FormFieldSpec[] | null;
+  output_format: ReportFormat;
+  source_filename: string;
+  source_format: string;
+  converted_docx_filename: string | null;
+  converted_docx_base64: string | null;
+}
+
+export interface TemplateReferenceText {
+  source_filename: string;
+  source_format: string;
+  content: string;
+}
+
 export interface ReportRead {
   id: string;
+  workspace_id?: string;
   upload_id: string;
   template_id: string | null;
   title: string;
@@ -80,6 +124,55 @@ export interface ReportRead {
   output_format: ReportFormat;
   generator_engine: Engine;
   created_at: string;
+}
+
+export interface ReportExportRead {
+  extension: ReportExportExtension;
+  filename: string;
+  media_type: string;
+  size_bytes: number;
+  download_url: string;
+}
+
+export interface FormFillPayload {
+  template_id: string;
+  source_text: string;
+  title: string;
+  additional_instructions?: string | null;
+}
+
+export interface FormFillFieldsPayload {
+  template_id: string;
+  title: string;
+  fields: Record<string, string>;
+  additional_instructions?: string | null;
+  ai_polish?: boolean;
+}
+
+export interface FormDetectFieldsPayload {
+  template_id: string;
+  source_text: string;
+  additional_instructions?: string | null;
+}
+
+export interface FormDetectFieldsResponse {
+  template_id: string;
+  fields: Record<string, string>;
+  generator_engine: Engine;
+}
+
+export interface FormFillResponse {
+  template_id: string;
+  title: string;
+  content: string;
+  output_format: ReportFormat;
+  generator_engine: Engine;
+}
+
+export interface FormExportPayload {
+  title: string;
+  content: string;
+  extension: ReportExportExtension;
 }
 
 export interface SettingsRead {

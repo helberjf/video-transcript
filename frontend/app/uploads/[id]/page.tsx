@@ -1,14 +1,16 @@
 ﻿"use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "@/components/section-header";
+import { SelectableWords, type SelectableWordToken } from "@/components/selectable-words";
 import { StatusBadge } from "@/components/status-badge";
 import { usePollUpload } from "@/hooks/use-poll-upload";
 import { formatDate, formatDuration } from "@/lib/utils";
-import { generateReport, getTemplates, updateReport } from "@/services/api";
-import type { ReportRead, ReportTemplate } from "@/types/api";
+import { appendWorkspaceActivity } from "@/lib/workspace-store";
+import { downloadReportExport, generateReport, getTemplates, updateReport } from "@/services/api";
+import type { ReportExportExtension, ReportRead, ReportTemplate } from "@/types/api";
 
 type ReadingModePayload = {
   title: string;
@@ -131,6 +133,23 @@ function buildReaderBlocks(content: string, format: "plain" | "markdown"): Reade
 
 function ReadableContent({ content, format }: { content: string; format: "plain" | "markdown" }) {
   const blocks = buildReaderBlocks(content, format);
+  const [selectedWordKeys, setSelectedWordKeys] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setSelectedWordKeys(new Set());
+  }, [content, format]);
+
+  const toggleWord = (token: SelectableWordToken) => {
+    setSelectedWordKeys((current) => {
+      const next = new Set(current);
+      if (next.has(token.key)) {
+        next.delete(token.key);
+      } else {
+        next.add(token.key);
+      }
+      return next;
+    });
+  };
 
   if (!blocks.length) {
     return <p className="text-base leading-8 text-slate">Nada disponível para leitura.</p>;
@@ -149,7 +168,12 @@ function ReadableContent({ content, format }: { content: string; format: "plain"
 
           return (
             <h4 key={`${block.type}-${index}`} className={headingClassName}>
-              {block.text}
+              <SelectableWords
+                text={block.text}
+                keyPrefix={`reader-heading-${index}`}
+                selectedKeys={selectedWordKeys}
+                onWordToggle={toggleWord}
+              />
             </h4>
           );
         }
@@ -159,7 +183,14 @@ function ReadableContent({ content, format }: { content: string; format: "plain"
           return (
             <ListTag key={`${block.type}-${index}`} className="space-y-3 pl-6 text-base leading-8 marker:text-slate">
               {block.items.map((item, itemIndex) => (
-                <li key={`${block.type}-${index}-${itemIndex}`}>{item}</li>
+                <li key={`${block.type}-${index}-${itemIndex}`}>
+                  <SelectableWords
+                    text={item}
+                    keyPrefix={`reader-list-${index}-${itemIndex}`}
+                    selectedKeys={selectedWordKeys}
+                    onWordToggle={toggleWord}
+                  />
+                </li>
               ))}
             </ListTag>
           );
@@ -167,7 +198,12 @@ function ReadableContent({ content, format }: { content: string; format: "plain"
 
         return (
           <p key={`${block.type}-${index}`} className="whitespace-pre-wrap text-base leading-8 text-ink/90">
-            {block.text}
+            <SelectableWords
+              text={block.text}
+              keyPrefix={`reader-paragraph-${index}`}
+              selectedKeys={selectedWordKeys}
+              onWordToggle={toggleWord}
+            />
           </p>
         );
       })}
@@ -300,7 +336,9 @@ async function downloadPdfDocument(documentData: ExportDocumentPayload): Promise
 
 export default function UploadDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const uploadId = useMemo(() => String(params.id), [params.id]);
+  const shouldGuideToModel = searchParams.get("next") === "model";
   const { upload, reports, setReports, loading, error } = usePollUpload(uploadId);
   const [templates, setTemplates] = useState<ReportTemplate[]>([]);
   const [templateId, setTemplateId] = useState("");
@@ -319,6 +357,7 @@ export default function UploadDetailPage() {
   const [renameDraft, setRenameDraft] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [savingReportId, setSavingReportId] = useState<string | null>(null);
+  const [reviewedReportIds, setReviewedReportIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     void getTemplates()
@@ -351,6 +390,12 @@ export default function UploadDetailPage() {
         title: reportTitle,
       });
       setReports((current: ReportRead[]) => [report, ...current]);
+      appendWorkspaceActivity({
+        type: "report",
+        title: "Relatorio gerado",
+        description: `${report.title} foi criado e aguarda revisao antes da exportacao.`,
+        href: `/uploads/${uploadId}`,
+      });
     } catch (err) {
       setReportError(err instanceof Error ? err.message : "Falha ao gerar relatório");
     } finally {
@@ -372,26 +417,23 @@ export default function UploadDetailPage() {
   };
 
   const exportReport = async (report: ReportRead, format: "text" | "docx" | "pdf") => {
+    if (!reviewedReportIds.has(report.id)) {
+      setExportError("Revise e aprove este relatorio antes de exportar.");
+      return;
+    }
     setExportError(null);
     setExportingReportId(`${report.id}:${format}`);
 
     try {
-      const exportDocument = {
-        title: report.title,
-        content: report.content,
-      };
-
-      if (format === "text") {
-        downloadTextDocument(exportDocument, getPlainTextExtension(report) as "txt" | "md");
-        return;
-      }
-
-      if (format === "docx") {
-        await downloadDocxDocument(exportDocument);
-        return;
-      }
-
-      await downloadPdfDocument(exportDocument);
+      const extension = (format === "text" ? getPlainTextExtension(report) : format) as ReportExportExtension;
+      const { blob, filename } = await downloadReportExport(report.id, extension);
+      appendWorkspaceActivity({
+        type: "export",
+        title: "Relatorio exportado",
+        description: `${report.title} foi exportado em ${extension.toUpperCase()} apos revisao.`,
+        href: `/uploads/${uploadId}`,
+      });
+      downloadBlob(blob, filename ?? sanitizeFilename(report.title, extension));
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "Falha ao exportar relatório");
     } finally {
@@ -514,7 +556,7 @@ export default function UploadDetailPage() {
                   </button>
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">Exportar transcrição</p>
                 <div className="flex flex-wrap gap-2">
                   <button className="button-secondary" type="button" disabled={!upload.transcription_text || exportingTranscriptionFormat === "txt"} onClick={() => void exportTranscription("txt")}>
@@ -531,11 +573,11 @@ export default function UploadDetailPage() {
                   </button>
                 </div>
               </div>
-              <div className="mt-6 rounded-3xl bg-canvas/80 p-5 text-sm leading-7 text-ink whitespace-pre-wrap">
+              <div className="mt-6 rounded-3xl border border-white/10 bg-midnight/40 p-5 text-sm leading-7 text-ink whitespace-pre-wrap">
                 {upload.transcription_text ?? "O processamento ainda está em andamento. Esta área será atualizada automaticamente."}
               </div>
               <p className="mt-4 text-xs leading-6 text-slate">Use o modo leitura para abrir a transcrição em uma visualização mais confortável, com coluna mais estreita e tipografia ampliada.</p>
-              {copyFeedback ? <p className="mt-4 rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate">{copyFeedback}</p> : null}
+              {copyFeedback ? <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate">{copyFeedback}</p> : null}
               {transcriptionExportError ? <p className="mt-4 rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{transcriptionExportError}</p> : null}
               {upload.error_message ? <p className="mt-4 rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{upload.error_message}</p> : null}
             </div>
@@ -543,6 +585,11 @@ export default function UploadDetailPage() {
             <div className="space-y-6">
               <section className="panel p-6">
                 <h3 className="text-xl font-semibold">Gerar relatório</h3>
+                {shouldGuideToModel ? (
+                  <p className="mt-2 rounded-2xl bg-sand/45 px-4 py-3 text-sm leading-6 text-ink">
+                    Quando a transcrição terminar, escolha um modelo abaixo e clique em gerar relatório para transformar o áudio em documento.
+                  </p>
+                ) : null}
                 <div className="mt-5 space-y-4">
                   <input className="field" value={reportTitle} onChange={(event) => setReportTitle(event.target.value)} placeholder="Título do relatório" />
                   <select className="field" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
@@ -553,18 +600,18 @@ export default function UploadDetailPage() {
                   </select>
 
                   {selectedTemplate ? (
-                    <div className="rounded-3xl bg-canvas/80 p-4 text-sm text-ink">
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-sm text-ink">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Modelo aplicado</p>
                       <p className="mt-2 font-medium">{selectedTemplate.name}</p>
                       <p className="mt-2 text-slate">{selectedTemplate.description}</p>
                       <div className="mt-4 grid gap-4">
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Objetivo</p>
-                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-white p-3 text-xs leading-6 text-ink">{selectedTemplate.base_prompt}</pre>
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-midnight/45 p-3 text-xs leading-6 text-ink">{selectedTemplate.base_prompt}</pre>
                         </div>
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Estrutura que a IA vai preencher</p>
-                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-white p-3 text-xs leading-6 text-ink">
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-midnight/45 p-3 text-xs leading-6 text-ink">
                             {selectedTemplate.example_output ?? "Esse modelo não tem exemplo salvo. A IA vai usar apenas o prompt."}
                           </pre>
                         </div>
@@ -592,7 +639,7 @@ export default function UploadDetailPage() {
                 <div className="mt-5 space-y-4">
                   {reports.length ? (
                     reports.map((report) => (
-                      <article key={report.id} className="rounded-3xl border border-black/5 bg-canvas/70 p-4">
+                      <article key={report.id} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             {editingReportId === report.id ? (
@@ -619,22 +666,44 @@ export default function UploadDetailPage() {
                             <button type="button" className="button-secondary" onClick={() => openReportReadingMode(report)}>
                               Modo leitura
                             </button>
-                            <button type="button" className="button-secondary" disabled={exportingReportId === `${report.id}:text`} onClick={() => void exportReport(report, "text")}>
+                            <button type="button" className="button-secondary" disabled={!reviewedReportIds.has(report.id) || exportingReportId === `${report.id}:text`} onClick={() => void exportReport(report, "text")}>
                               {exportingReportId === `${report.id}:text` ? "Preparando..." : getPlainTextExtension(report).toUpperCase()}
                             </button>
-                            <button type="button" className="button-secondary" disabled={exportingReportId === `${report.id}:docx`} onClick={() => void exportReport(report, "docx")}>
+                            <button type="button" className="button-secondary" disabled={!reviewedReportIds.has(report.id) || exportingReportId === `${report.id}:docx`} onClick={() => void exportReport(report, "docx")}>
                               {exportingReportId === `${report.id}:docx` ? "Preparando..." : "DOCX"}
                             </button>
-                            <button type="button" className="button-secondary" disabled={exportingReportId === `${report.id}:pdf`} onClick={() => void exportReport(report, "pdf")}>
+                            <button type="button" className="button-secondary" disabled={!reviewedReportIds.has(report.id) || exportingReportId === `${report.id}:pdf`} onClick={() => void exportReport(report, "pdf")}>
                               {exportingReportId === `${report.id}:pdf` ? "Preparando..." : "PDF"}
                             </button>
                           </div>
                         </div>
-                        <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-white p-4 text-xs leading-6 text-ink">{report.content}</pre>
+                        <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-midnight/45 p-4 text-xs leading-6 text-ink">{report.content}</pre>
+                        <label className="mt-4 flex items-start gap-3 rounded-2xl border border-sand/20 bg-sand/10 px-4 py-3 text-sm leading-6 text-sand">
+                          <input
+                            className="mt-1"
+                            type="checkbox"
+                            checked={reviewedReportIds.has(report.id)}
+                            onChange={(event) => {
+                              setReviewedReportIds((current) => {
+                                const next = new Set(current);
+                                if (event.target.checked) {
+                                  next.add(report.id);
+                                } else {
+                                  next.delete(report.id);
+                                }
+                                return next;
+                              });
+                            }}
+                          />
+                          <span>
+                            <span className="font-semibold text-ink">Revisei este relatorio.</span>{" "}
+                            Libere as exportacoes apenas depois de conferir os dados.
+                          </span>
+                        </label>
                       </article>
                     ))
                   ) : (
-                    <div className="rounded-3xl border border-dashed border-black/10 p-5 text-sm text-slate">Nenhum relatório gerado para esta transcrição.</div>
+                    <div className="rounded-3xl border border-dashed border-white/10 p-5 text-sm text-slate">Nenhum relatório gerado para esta transcrição.</div>
                   )}
                   {renameError ? <p className="rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{renameError}</p> : null}
                   {exportError ? <p className="rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{exportError}</p> : null}
@@ -646,15 +715,15 @@ export default function UploadDetailPage() {
       ) : null}
 
       {readingMode ? (
-        <div className="fixed inset-0 z-50 bg-ink/45 p-4 backdrop-blur-sm sm:p-6" onClick={() => setReadingMode(null)}>
+        <div className="fixed inset-0 z-50 bg-midnight/75 p-4 backdrop-blur-sm sm:p-6" onClick={() => setReadingMode(null)}>
           <div
             className="mx-auto flex h-full max-w-5xl items-end sm:items-center"
           >
             <div
-              className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-[2rem] border border-black/10 bg-[#fffdf8] shadow-2xl"
+              className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-navy shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-start justify-between gap-4 border-b border-black/5 px-6 py-5 sm:px-8">
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5 sm:px-8">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">Leitura confortável</p>
                   <h3 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{readingMode.title}</h3>

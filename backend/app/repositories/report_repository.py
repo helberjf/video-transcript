@@ -29,5 +29,17 @@ class ReportRepository:
             ).all()
         )
 
+    def list_by_upload_for_workspace(self, upload_id: str, workspace_id: str) -> list[GeneratedReport]:
+        return list(
+            self.db.scalars(
+                select(GeneratedReport)
+                .where(GeneratedReport.upload_id == upload_id, GeneratedReport.workspace_id == workspace_id)
+                .order_by(GeneratedReport.created_at.desc())
+            ).all()
+        )
+
     def get(self, report_id: str) -> GeneratedReport | None:
         return self.db.get(GeneratedReport, report_id)
+
+    def get_for_workspace(self, report_id: str, workspace_id: str) -> GeneratedReport | None:
+        return self.db.scalar(select(GeneratedReport).where(GeneratedReport.id == report_id, GeneratedReport.workspace_id == workspace_id))

@@ -27,8 +27,26 @@ def run_startup_migrations() -> None:
             row[1]
             for row in connection.execute(text("PRAGMA table_info(report_templates)"))
         }
+        if report_template_columns and "workspace_id" not in report_template_columns:
+            connection.execute(text("ALTER TABLE report_templates ADD COLUMN workspace_id VARCHAR(80) DEFAULT 'local-workspace' NOT NULL"))
         if report_template_columns and "example_output" not in report_template_columns:
             connection.execute(text("ALTER TABLE report_templates ADD COLUMN example_output TEXT"))
+        if report_template_columns and "form_fields" not in report_template_columns:
+            connection.execute(text("ALTER TABLE report_templates ADD COLUMN form_fields TEXT"))
+
+        upload_columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(uploads)"))
+        }
+        if upload_columns and "workspace_id" not in upload_columns:
+            connection.execute(text("ALTER TABLE uploads ADD COLUMN workspace_id VARCHAR(80) DEFAULT 'local-workspace' NOT NULL"))
+
+        report_columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(generated_reports)"))
+        }
+        if report_columns and "workspace_id" not in report_columns:
+            connection.execute(text("ALTER TABLE generated_reports ADD COLUMN workspace_id VARCHAR(80) DEFAULT 'local-workspace' NOT NULL"))
 
         system_config_columns = {
             row[1]

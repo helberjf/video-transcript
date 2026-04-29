@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -31,10 +32,18 @@ def mask_secret(value: str | None) -> str | None:
 
 
 def _get_backend_env_path() -> Path:
+    config_dir = os.getenv("APP_CONFIG_DIR")
+    if config_dir:
+        return Path(config_dir) / ".env"
     return BASE_DIR / ".env"
 
 
 def _get_backend_env_example_path() -> Path:
+    config_dir = os.getenv("APP_CONFIG_DIR")
+    if config_dir:
+        local_example = Path(config_dir) / ".env.example"
+        if local_example.exists():
+            return local_example
     return BASE_DIR / ".env.example"
 
 

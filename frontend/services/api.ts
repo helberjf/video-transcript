@@ -1,15 +1,27 @@
 import type {
   DashboardStats,
+  FormDetectFieldsPayload,
+  FormDetectFieldsResponse,
+  FormExportPayload,
+  FormFillFieldsPayload,
+  FormFillPayload,
+  FormFillResponse,
+  ReportExportExtension,
+  ReportExportRead,
   ReportRenamePayload,
   ReportRead,
+  RemoteImportPayload,
   ReportTemplate,
   SettingsRead,
   StartProcessingPayload,
+  TemplateReferenceAnalysis,
+  TemplateReferenceText,
   TranscriptionRead,
   UploadCreateResponse,
   UploadItem,
   UploadListResponse,
 } from "@/types/api";
+import { getWorkspaceRequestHeader } from "@/lib/workspace-store";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
@@ -18,6 +30,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      "X-Workspace-Id": getWorkspaceRequestHeader(),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
@@ -31,12 +44,35 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+function parseErrorMessage(data: unknown): string {
+  if (data && typeof data === "object" && "detail" in data && typeof data.detail === "string") {
+    return data.detail;
+  }
+
+  return "Falha na comunicaÃ§Ã£o com o backend";
+}
+
+function parseFilenameFromDisposition(headerValue: string | null): string | null {
+  if (!headerValue) {
+    return null;
+  }
+
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(headerValue);
+  if (utf8Match) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const asciiMatch = /filename="?([^";]+)"?/i.exec(headerValue);
+  return asciiMatch?.[1] ?? null;
+}
+
 export function uploadFile(file: File, onProgress: (value: number) => void): Promise<UploadCreateResponse> {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     formData.append("file", file);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_BASE}/uploads`);
+    xhr.setRequestHeader("X-Workspace-Id", getWorkspaceRequestHeader());
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         onProgress(Math.round((event.loaded / event.total) * 100));
@@ -56,6 +92,13 @@ export function uploadFile(file: File, onProgress: (value: number) => void): Pro
     };
     xhr.onerror = () => reject(new Error("Erro de rede durante o upload"));
     xhr.send(formData);
+  });
+}
+
+export function importRemoteMedia(payload: RemoteImportPayload) {
+  return request<UploadCreateResponse>("/uploads/import", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
@@ -107,6 +150,87 @@ export function createTemplate(payload: Record<string, unknown>) {
   });
 }
 
+export async function createTemplateFromReference(
+  file: File,
+  fields: { name?: string; description?: string; category?: string },
+): Promise<ReportTemplate> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (fields.name?.trim()) {
+    formData.append("name", fields.name.trim());
+  }
+  if (fields.description?.trim()) {
+    formData.append("description", fields.description.trim());
+  }
+  if (fields.category?.trim()) {
+    formData.append("category", fields.category.trim());
+  }
+
+  const response = await fetch(`${API_BASE}/report-templates/analyze-reference`, {
+    method: "POST",
+    headers: { "X-Workspace-Id": getWorkspaceRequestHeader() },
+    body: formData,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as unknown;
+    throw new Error(parseErrorMessage(data));
+  }
+
+  return (await response.json()) as ReportTemplate;
+}
+
+export async function analyzeTemplateReference(
+  file: File,
+  fields: { name?: string; description?: string; category?: string },
+): Promise<TemplateReferenceAnalysis> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (fields.name?.trim()) {
+    formData.append("name", fields.name.trim());
+  }
+  if (fields.description?.trim()) {
+    formData.append("description", fields.description.trim());
+  }
+  if (fields.category?.trim()) {
+    formData.append("category", fields.category.trim());
+  }
+
+  const response = await fetch(`${API_BASE}/report-templates/analyze-reference-preview`, {
+    method: "POST",
+    headers: { "X-Workspace-Id": getWorkspaceRequestHeader() },
+    body: formData,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as unknown;
+    throw new Error(parseErrorMessage(data));
+  }
+
+  return (await response.json()) as TemplateReferenceAnalysis;
+}
+
+export async function extractTemplateReferenceText(file: File): Promise<TemplateReferenceText> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE}/report-templates/extract-reference-text`, {
+    method: "POST",
+    headers: { "X-Workspace-Id": getWorkspaceRequestHeader() },
+    body: formData,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as unknown;
+    throw new Error(parseErrorMessage(data));
+  }
+
+  return (await response.json()) as TemplateReferenceText;
+}
+
 export function updateTemplate(templateId: string, payload: Record<string, unknown>) {
   return request<ReportTemplate>(`/report-templates/${templateId}`, {
     method: "PUT",
@@ -126,6 +250,10 @@ export function getReportsByUpload(uploadId: string) {
   return request<ReportRead[]>(`/uploads/${uploadId}/reports`);
 }
 
+export function getReportExports(reportId: string) {
+  return request<ReportExportRead[]>(`/reports/${reportId}/exports`);
+}
+
 export function generateReport(payload: Record<string, unknown>) {
   return request<ReportRead>("/reports/generate", {
     method: "POST",
@@ -133,11 +261,71 @@ export function generateReport(payload: Record<string, unknown>) {
   });
 }
 
+export function fillForm(payload: FormFillPayload) {
+  return request<FormFillResponse>("/forms/fill", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fillFormByFields(payload: FormFillFieldsPayload) {
+  return request<FormFillResponse>("/forms/fill-fields", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function detectFormFields(payload: FormDetectFieldsPayload) {
+  return request<FormDetectFieldsResponse>("/forms/detect-fields", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function exportForm(payload: FormExportPayload): Promise<{ blob: Blob; filename: string | null }> {
+  const response = await fetch(`${API_BASE}/forms/export`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Workspace-Id": getWorkspaceRequestHeader() },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as unknown;
+    throw new Error(parseErrorMessage(data));
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: parseFilenameFromDisposition(response.headers.get("content-disposition")),
+  };
+}
+
 export function updateReport(reportId: string, payload: ReportRenamePayload) {
   return request<ReportRead>(`/reports/${reportId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+}
+
+export async function downloadReportExport(
+  reportId: string,
+  extension: ReportExportExtension,
+): Promise<{ blob: Blob; filename: string | null }> {
+  const response = await fetch(`${API_BASE}/reports/${reportId}/exports/${extension}`, {
+    headers: { "X-Workspace-Id": getWorkspaceRequestHeader() },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as unknown;
+    throw new Error(parseErrorMessage(data));
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: parseFilenameFromDisposition(response.headers.get("content-disposition")),
+  };
 }
 
 export function getSettings() {

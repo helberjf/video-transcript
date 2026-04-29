@@ -25,10 +25,18 @@ venv/
 env/
 ENV/
 frontend/node_modules/
+node_modules/
 frontend/.next/
+frontend/tsconfig.tsbuildinfo
 backend/.pytest_cache/
 backend/data/
 storage/
+dist-electron/
+electron/resources/backend/
+electron/resources/frontend/
+electron/resources/ffmpeg/
+electron/.pyinstaller/
+temp-whisper-check/
 
 # IDE
 .vscode/
@@ -65,3 +73,5 @@ models/
 cookies.txt
 cookies.txt.bak
 
+*storage/
+storage/

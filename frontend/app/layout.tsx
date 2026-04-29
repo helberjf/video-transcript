@@ -9,8 +9,8 @@ const displayFont = Space_Grotesk({ subsets: ["latin"], variable: "--font-displa
 const bodyFont = Source_Sans_3({ subsets: ["latin"], variable: "--font-body" });
 
 export const metadata: Metadata = {
-  title: "Media Transcript Studio",
-  description: "Aplicação local para transcrição e geração de relatórios com IA.",
+  title: "FormReport Studio",
+  description: "Crie formularios e relatorios a partir de imagens, documentos, audios e videos com IA.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

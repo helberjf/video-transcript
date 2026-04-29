@@ -9,18 +9,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        canvas: "#f0f4f8",
-        ink: "#091535",
-        tide: "#1a3a8f",
-        sand: "#c8daf8",
-        ember: "#dc2626",
-        slate: "#4a617d",
+        canvas: "#111412",
+        midnight: "#171a18",
+        navy: "#20251f",
+        steel: "#2f3a33",
+        ink: "#f4f2e8",
+        tide: "#14b8a6",
+        sand: "#f5c542",
+        aqua: "#6ee7d8",
+        ember: "#fb7185",
+        slate: "#aeb5a6",
       },
       boxShadow: {
-        panel: "0 18px 50px rgba(9, 21, 53, 0.10)",
+        panel: "0 18px 56px rgba(0, 0, 0, 0.26)",
       },
       backgroundImage: {
-        mesh: "radial-gradient(circle at top left, rgba(200, 218, 248, 0.55), transparent 45%), radial-gradient(circle at right center, rgba(26, 58, 143, 0.05), transparent 42%), linear-gradient(180deg, #f7f9ff 0%, #edf2fb 100%)",
+        mesh: "linear-gradient(180deg, #151915 0%, #101310 46%, #171a18 100%), linear-gradient(rgba(244,242,232,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(244,242,232,0.035) 1px, transparent 1px)",
       },
     },
   },

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -9,14 +10,24 @@ from app.schemas.settings import TranscriptionProvider
 
 class UploadCreateResponse(BaseModel):
     id: str
+    workspace_id: str = "local-workspace"
     original_filename: str
     file_type: FileType
     status: ProcessingStatus
     created_at: datetime
 
 
+RemoteMediaSource = Literal["youtube", "instagram"]
+
+
+class RemoteImportRequest(BaseModel):
+    source: RemoteMediaSource
+    url: str = Field(..., min_length=8, max_length=2000)
+
+
 class UploadDetail(ORMModel):
     id: str
+    workspace_id: str = "local-workspace"
     original_filename: str
     stored_filename: str
     file_type: FileType

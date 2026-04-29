@@ -3,11 +3,12 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
-  @apply bg-mesh text-ink antialiased;
+  @apply min-h-screen bg-mesh text-ink antialiased;
+  background-size: auto, 44px 44px, 44px 44px;
 }
 
 a {
@@ -22,21 +23,21 @@ textarea {
 }
 
 .panel {
-  @apply rounded-3xl border border-black/5 bg-white/90 shadow-panel backdrop-blur;
+  @apply rounded-xl border border-white/10 bg-navy/[0.82] shadow-panel backdrop-blur-xl;
 }
 
 .field {
-  @apply w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none transition focus:border-tide focus:ring-2 focus:ring-tide/20;
+  @apply w-full rounded-lg border border-white/10 bg-midnight/70 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-slate/55 focus:border-sand focus:ring-2 focus:ring-sand/20 disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .button-primary {
-  @apply inline-flex items-center justify-center rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white transition hover:bg-tide disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center rounded-lg bg-sand px-5 py-3 text-sm font-semibold text-midnight shadow-lg shadow-black/20 transition hover:bg-aqua disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .button-secondary {
-  @apply inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white px-5 py-3 text-sm font-medium text-ink transition hover:border-tide hover:text-tide;
+  @apply inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-ink transition hover:border-sand/50 hover:bg-white/10 hover:text-sand disabled:cursor-not-allowed disabled:opacity-55;
 }
 
 .button-danger {
-  @apply inline-flex items-center justify-center rounded-2xl border border-ember/20 bg-ember/10 px-4 py-2 text-sm font-medium text-ember transition hover:bg-ember hover:text-white;
+  @apply inline-flex items-center justify-center rounded-lg border border-ember/30 bg-ember/10 px-4 py-2 text-sm font-medium text-ember transition hover:bg-ember hover:text-midnight disabled:cursor-not-allowed disabled:opacity-55;
 }

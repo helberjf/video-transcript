@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -7,6 +8,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 PROJECT_DIR = BASE_DIR.parent
+
+
+def _settings_env_files() -> tuple[Path, ...]:
+    files: list[Path] = []
+    config_dir = os.getenv("APP_CONFIG_DIR")
+    if config_dir:
+        config_path = Path(config_dir)
+        files.extend([config_path / ".env", config_path / ".env.local"])
+
+    files.extend([BASE_DIR / ".env", PROJECT_DIR / ".env"])
+    return tuple(files)
 
 
 class Settings(BaseSettings):
@@ -40,12 +52,7 @@ class Settings(BaseSettings):
     provider_timeout_seconds: int = 120
     provider_retries: int = 2
 
-    model_config = SettingsConfigDict(
-        env_file=(BASE_DIR / ".env", PROJECT_DIR / ".env"),
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore",
-    )
+    model_config = SettingsConfigDict(env_file=_settings_env_files(), env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 
     @property
     def max_upload_bytes(self) -> int:

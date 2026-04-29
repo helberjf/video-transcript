@@ -35,25 +35,64 @@ function runCommand(command, args) {
   });
 }
 
-function getWindowsPortOwner(port) {
-  const script = [
-    `$conn = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1`,
-    'if ($conn) {',
-    '  $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningProcess)"',
-    '  [PSCustomObject]@{ pid = $conn.OwningProcess; commandLine = $proc.CommandLine } | ConvertTo-Json -Compress',
-    '}',
-  ].join(" ");
-
-  const result = runCommand("powershell.exe", ["-NoProfile", "-Command", script]);
+function getWindowsProcessInfo(pid) {
+  const result = runCommand("wmic.exe", [
+    "process",
+    "where",
+    `ProcessId=${pid}`,
+    "get",
+    "CommandLine,ParentProcessId",
+    "/FORMAT:LIST",
+  ]);
   if (result.status !== 0 || !result.stdout.trim()) {
     return null;
   }
 
-  try {
-    return JSON.parse(result.stdout);
-  } catch {
+  const info = {};
+  for (const rawLine of result.stdout.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    const separatorIndex = line.indexOf("=");
+    if (separatorIndex === -1) {
+      continue;
+    }
+    const key = line.slice(0, separatorIndex);
+    const value = line.slice(separatorIndex + 1);
+    info[key] = value;
+  }
+
+  return {
+    commandLine: info.CommandLine ?? "",
+    parentPid: Number(info.ParentProcessId) || null,
+  };
+}
+
+function getWindowsPortOwner(port) {
+  const result = runCommand("netstat.exe", ["-ano", "-p", "tcp"]);
+  if (result.status !== 0 || !result.stdout.trim()) {
     return null;
   }
+
+  for (const rawLine of result.stdout.split(/\r?\n/)) {
+    const columns = rawLine.trim().split(/\s+/);
+    const [protocol, localAddress, , state, pid] = columns;
+    if (protocol?.toUpperCase() !== "TCP" || state?.toUpperCase() !== "LISTENING") {
+      continue;
+    }
+    if (!localAddress?.endsWith(`:${port}`) || !pid) {
+      continue;
+    }
+
+    const processInfo = getWindowsProcessInfo(pid);
+    const parentInfo = processInfo?.parentPid ? getWindowsProcessInfo(processInfo.parentPid) : null;
+    return {
+      pid: Number(pid),
+      commandLine: processInfo?.commandLine ?? "",
+      parentPid: processInfo?.parentPid ?? null,
+      parentCommandLine: parentInfo?.commandLine ?? "",
+    };
+  }
+
+  return null;
 }
 
 function stopWindowsProcessTree(pid) {
@@ -61,21 +100,39 @@ function stopWindowsProcessTree(pid) {
   return result.status === 0;
 }
 
+function sleep(ms) {
+  return new Promise((resolvePromise) => {
+    setTimeout(resolvePromise, ms);
+  });
+}
+
+function normalizeCommandText(value) {
+  return value.replaceAll("/", "\\").toLowerCase();
+}
+
 function isCurrentProjectNextProcess(commandLine, cwd) {
   if (!commandLine) {
     return false;
   }
 
-  const expectedPath = normalize(resolve(cwd, "node_modules", "next", "dist", "server", "lib", "start-server.js")).toLowerCase();
-  return normalize(commandLine).toLowerCase().includes(expectedPath);
+  const normalizedCommand = normalizeCommandText(commandLine);
+  const expectedPaths = [
+    resolve(cwd, "node_modules", "next", "dist", "bin", "next"),
+    resolve(cwd, "node_modules", "next", "dist", "server", "lib", "start-server.js"),
+  ].map((path) => normalizeCommandText(normalize(path)));
+
+  return expectedPaths.some((expectedPath) => normalizedCommand.includes(expectedPath));
 }
 
 async function resolvePort(cwd) {
   if (process.platform === "win32") {
     const owner = getWindowsPortOwner(DEFAULT_PORT);
     if (owner?.pid && isCurrentProjectNextProcess(owner.commandLine, cwd)) {
-      console.log(`Stopping previous frontend process on port ${DEFAULT_PORT} (PID ${owner.pid}).`);
-      stopWindowsProcessTree(owner.pid);
+      const parentBelongsToProject = owner.parentPid && isCurrentProjectNextProcess(owner.parentCommandLine, cwd);
+      const pidToStop = parentBelongsToProject ? owner.parentPid : owner.pid;
+      console.log(`Stopping previous frontend process on port ${DEFAULT_PORT} (PID ${pidToStop}).`);
+      stopWindowsProcessTree(pidToStop);
+      await sleep(1000);
     }
   }
 
@@ -95,9 +152,9 @@ async function resolvePort(cwd) {
 
 async function main() {
   const cwd = process.cwd();
+  const port = await resolvePort(cwd);
   clearNextDevCache(cwd);
 
-  const port = await resolvePort(cwd);
   const nextBin = require.resolve("next/dist/bin/next");
   console.log(`Starting Next.js dev server on http://${HOST}:${port}.`);
   const child = spawn(process.execPath, [nextBin, "dev", "--hostname", HOST, "--port", String(port)], {

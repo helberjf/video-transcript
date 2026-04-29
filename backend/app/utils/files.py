@@ -24,8 +24,9 @@ def detect_media_type(filename: str) -> FileType:
 
 def validate_upload(upload_file: UploadFile) -> FileType:
     settings = get_settings()
-    file_type = detect_media_type(upload_file.filename or "")
     content_type = upload_file.content_type or mimetypes.guess_type(upload_file.filename or "")[0] or "application/octet-stream"
+    extension = Path(upload_file.filename or "").suffix.lower()
+    file_type = FileType.AUDIO if extension == ".webm" and content_type.startswith("audio/") else detect_media_type(upload_file.filename or "")
     if file_type == FileType.VIDEO and not content_type.startswith("video/"):
         raise ValueError("O MIME type do vídeo é inválido")
     if file_type == FileType.AUDIO and not content_type.startswith("audio/"):

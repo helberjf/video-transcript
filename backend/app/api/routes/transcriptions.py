@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.workspace import call_with_workspace, get_workspace_id
 from app.schemas.transcription import TranscriptionRead
 from app.services.upload_service import get_upload_or_404
 
@@ -10,8 +11,12 @@ router = APIRouter(prefix="/api", tags=["transcriptions"])
 
 
 @router.get("/transcriptions/{upload_id}", response_model=TranscriptionRead)
-def read_transcription(upload_id: str, db: Session = Depends(get_db)) -> TranscriptionRead:
-    upload = get_upload_or_404(db, upload_id)
+def read_transcription(
+    upload_id: str,
+    db: Session = Depends(get_db),
+    workspace_id: str = Depends(get_workspace_id),
+) -> TranscriptionRead:
+    upload = call_with_workspace(get_upload_or_404, db, upload_id, workspace_id=workspace_id)
     return TranscriptionRead(
         upload_id=upload.id,
         original_filename=upload.original_filename,

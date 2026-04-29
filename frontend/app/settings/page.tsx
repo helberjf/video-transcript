@@ -95,7 +95,7 @@ export default function SettingsPage() {
         description="As chaves de API ficam apenas no backend."
       />
 
-      {message ? <div className="panel p-6 text-sm text-emerald-700">{message}</div> : null}
+      {message ? <div className="panel p-6 text-sm text-emerald-200">{message}</div> : null}
       {error ? <div className="panel p-6 text-sm text-ember">{error}</div> : null}
 
       <section className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
@@ -151,16 +151,16 @@ export default function SettingsPage() {
               <input className="field" value={form.export_directory} onChange={(event) => setForm((current) => ({ ...current, export_directory: event.target.value }))} placeholder="C:\\Relatorios" />
             </div>
             <div className="md:col-span-2">
-              <label className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm">
+              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm">
                 <input type="checkbox" checked={form.auto_cleanup_temp_files} onChange={(event) => setForm((current) => ({ ...current, auto_cleanup_temp_files: event.target.checked }))} />
                 Apagar arquivos temporários automaticamente
               </label>
             </div>
-            <div className="md:col-span-2 rounded-3xl bg-canvas/70 p-4">
+            <div className="md:col-span-2 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
               <p className="text-sm font-semibold text-ink">Ordem de transcrição</p>
               <div className="mt-4 space-y-3">
                 {form.transcription_provider_order.map((provider, index) => (
-                  <div key={provider} className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 text-sm">
+                  <div key={provider} className="flex items-center justify-between rounded-2xl border border-white/10 bg-midnight/35 px-4 py-3 text-sm">
                     <div>
                       <p className="font-medium text-ink">{index + 1}. {TRANSCRIPTION_PROVIDER_LABELS[provider]}</p>
                     </div>
@@ -172,11 +172,11 @@ export default function SettingsPage() {
                 ))}
               </div>
             </div>
-            <div className="md:col-span-2 rounded-3xl bg-canvas/70 p-4">
+            <div className="md:col-span-2 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
               <p className="text-sm font-semibold text-ink">Ordem de geração de relatórios</p>
               <div className="mt-4 space-y-3">
                 {form.report_provider_order.map((provider, index) => (
-                  <div key={provider} className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 text-sm">
+                  <div key={provider} className="flex items-center justify-between rounded-2xl border border-white/10 bg-midnight/35 px-4 py-3 text-sm">
                     <div>
                       <p className="font-medium text-ink">{index + 1}. {REPORT_PROVIDER_LABELS[provider]}</p>
                     </div>

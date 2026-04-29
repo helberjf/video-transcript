@@ -4,6 +4,7 @@ from app.models.enums import ReportFormat
 from app.models.report_template import ReportTemplate
 from app.repositories.report_template_repository import ReportTemplateRepository
 
+DEFAULT_SEED_WORKSPACE_ID = "local-workspace"
 
 DEFAULT_TEMPLATES = [
     {
@@ -42,10 +43,10 @@ DEFAULT_TEMPLATES = [
 def seed_report_templates(db: Session) -> None:
     repository = ReportTemplateRepository(db)
     for template_data in DEFAULT_TEMPLATES:
-        existing = repository.get_by_name(template_data["name"])
+        existing = repository.get_by_name(template_data["name"], DEFAULT_SEED_WORKSPACE_ID)
         if existing:
             if not existing.example_output and template_data.get("example_output"):
                 existing.example_output = template_data["example_output"]
                 repository.save(existing)
             continue
-        repository.create(ReportTemplate(**template_data))
+        repository.create(ReportTemplate(workspace_id=DEFAULT_SEED_WORKSPACE_ID, **template_data))

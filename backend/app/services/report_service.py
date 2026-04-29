@@ -1,3 +1,5 @@
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -9,8 +11,25 @@ from app.models.report import GeneratedReport
 from app.repositories.report_repository import ReportRepository
 from app.repositories.report_template_repository import ReportTemplateRepository
 from app.repositories.upload_repository import UploadRepository
-from app.schemas.report import GenerateReportRequest
+from app.schemas.report import GenerateReportRequest, ReportExportExtension
 from app.services.settings_service import get_effective_provider_settings
+
+
+@dataclass(frozen=True)
+class ReportExportFile:
+    extension: ReportExportExtension
+    path: Path
+    media_type: str
+    filename: str
+
+
+REPORT_EXPORT_MEDIA_TYPES = {
+    ReportExportExtension.MD: "text/markdown; charset=utf-8",
+    ReportExportExtension.TXT: "text/plain; charset=utf-8",
+    ReportExportExtension.DOCX: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ReportExportExtension.PDF: "application/pdf",
+}
+EXPORT_CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 
 
 def _markdown_heading_level(line: str) -> int:
@@ -23,11 +42,17 @@ def _markdown_heading_level(line: str) -> int:
     return min(level, 6)
 
 
-def _write_docx_export(export_path: Path, content: str) -> None:
+def _sanitize_export_text(value: str) -> str:
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n")
+    return EXPORT_CONTROL_CHARACTERS.sub("", normalized)
+
+
+def write_docx_export(export_path: Path, content: str) -> None:
     from docx import Document
 
+    sanitized_content = _sanitize_export_text(content)
     document = Document()
-    for line in content.replace("\r\n", "\n").split("\n"):
+    for line in sanitized_content.split("\n"):
         normalized_line = line.rstrip()
         if not normalized_line:
             document.add_paragraph("")
@@ -43,11 +68,13 @@ def _write_docx_export(export_path: Path, content: str) -> None:
     document.save(export_path)
 
 
-def _write_pdf_export(export_path: Path, title: str, content: str) -> None:
+def write_pdf_export(export_path: Path, title: str, content: str) -> None:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
+    sanitized_title = _sanitize_export_text(title)
+    sanitized_content = _sanitize_export_text(content)
     styles = getSampleStyleSheet()
     body_style = ParagraphStyle(
         "ReportBody",
@@ -64,9 +91,9 @@ def _write_pdf_export(export_path: Path, title: str, content: str) -> None:
         4: ParagraphStyle("Heading4Export", parent=styles["Heading4"], fontName="Helvetica-Bold"),
     }
 
-    document = SimpleDocTemplate(str(export_path), pagesize=A4, title=title)
+    document = SimpleDocTemplate(str(export_path), pagesize=A4, title=sanitized_title)
     story = []
-    for block in content.replace("\r\n", "\n").split("\n\n"):
+    for block in sanitized_content.split("\n\n"):
         normalized_block = block.strip()
         if not normalized_block:
             continue
@@ -88,8 +115,8 @@ def _write_report_exports(export_dir: Path, report_id: str, title: str, output_f
     primary_suffix = ".md" if output_format == ReportFormat.MARKDOWN else ".txt"
     primary_path = export_dir / f"{report_id}{primary_suffix}"
     primary_path.write_text(content, encoding="utf-8")
-    _write_docx_export(export_dir / f"{report_id}.docx", content)
-    _write_pdf_export(export_dir / f"{report_id}.pdf", title, content)
+    write_docx_export(export_dir / f"{report_id}.docx", content)
+    write_pdf_export(export_dir / f"{report_id}.pdf", title, content)
 
 
 def build_report_prompt(
@@ -191,9 +218,69 @@ def _report_provider_order(settings_data: dict[str, str | int | bool | None]) ->
     return ["openai", "claude", "gemini", "local"]
 
 
-def rename_report(db: Session, report_id: str, title: str) -> GeneratedReport:
+def _read_report_or_error(db: Session, report_id: str, workspace_id: str | None = None) -> GeneratedReport:
+    repository = ReportRepository(db)
+    report = repository.get_for_workspace(report_id, workspace_id) if workspace_id else repository.get(report_id)
+    if not report:
+        raise ValueError("RelatÃ³rio nÃ£o encontrado")
+    return report
+
+
+def _report_exports_dir(db: Session) -> Path:
+    settings_data = get_effective_provider_settings(db)
+    return Path(str(settings_data.get("export_directory") or get_settings().exports_dir))
+
+
+def build_export_download_filename(title: str, extension: ReportExportExtension, fallback: str = "relatorio") -> str:
+    normalized = re.sub(r"[\\/:*?\"<>|]+", "-", title).strip()
+    normalized = re.sub(r"\s+", " ", normalized)[:120]
+    return f"{normalized or fallback}.{extension.value}"
+
+
+def _report_download_filename(title: str, extension: ReportExportExtension) -> str:
+    return build_export_download_filename(title, extension)
+
+
+def _expected_report_export_extensions(report: GeneratedReport) -> list[ReportExportExtension]:
+    primary_extension = ReportExportExtension.MD if report.output_format == ReportFormat.MARKDOWN else ReportExportExtension.TXT
+    return [primary_extension, ReportExportExtension.DOCX, ReportExportExtension.PDF]
+
+
+def _report_export_candidates(report: GeneratedReport, export_dir: Path) -> list[ReportExportFile]:
+    return [
+        ReportExportFile(
+            extension=extension,
+            path=export_dir / f"{report.id}.{extension.value}",
+            media_type=REPORT_EXPORT_MEDIA_TYPES[extension],
+            filename=_report_download_filename(report.title, extension),
+        )
+        for extension in _expected_report_export_extensions(report)
+    ]
+
+
+def list_report_exports(db: Session, report_id: str, workspace_id: str | None = None) -> list[ReportExportFile]:
+    report = _read_report_or_error(db, report_id, workspace_id)
+    export_dir = _report_exports_dir(db)
+    return [export_file for export_file in _report_export_candidates(report, export_dir) if export_file.path.is_file()]
+
+
+def get_report_export(db: Session, report_id: str, extension: ReportExportExtension, workspace_id: str | None = None) -> ReportExportFile:
+    report = _read_report_or_error(db, report_id, workspace_id)
+    export_dir = _report_exports_dir(db)
+
+    for export_file in _report_export_candidates(report, export_dir):
+        if export_file.extension != extension:
+            continue
+        if not export_file.path.is_file():
+            raise ValueError("ExportaÃ§Ã£o nÃ£o encontrada")
+        return export_file
+
+    raise ValueError("Formato de exportaÃ§Ã£o nÃ£o disponÃ­vel para este relatÃ³rio")
+
+
+def rename_report(db: Session, report_id: str, title: str, workspace_id: str | None = None) -> GeneratedReport:
     report_repository = ReportRepository(db)
-    report = report_repository.get(report_id)
+    report = report_repository.get_for_workspace(report_id, workspace_id) if workspace_id else report_repository.get(report_id)
     if not report:
         raise ValueError("Relatório não encontrado")
 
@@ -201,17 +288,17 @@ def rename_report(db: Session, report_id: str, title: str) -> GeneratedReport:
     return report_repository.save(report)
 
 
-def generate_report(db: Session, payload: GenerateReportRequest) -> GeneratedReport:
+def generate_report(db: Session, payload: GenerateReportRequest, workspace_id: str = "local-workspace") -> GeneratedReport:
     upload_repository = UploadRepository(db)
     template_repository = ReportTemplateRepository(db)
     report_repository = ReportRepository(db)
-    upload = upload_repository.get(payload.upload_id)
+    upload = upload_repository.get_for_workspace(payload.upload_id, workspace_id)
     if not upload:
         raise ValueError("Upload não encontrado")
     if not upload.transcription_text:
         raise ValueError("A transcrição ainda não está disponível")
 
-    template = template_repository.get(payload.template_id) if payload.template_id else None
+    template = template_repository.get_for_workspace(payload.template_id, workspace_id) if payload.template_id else None
     output_format = template.output_format if template else ReportFormat.MARKDOWN
     prompt = build_report_prompt(
         transcription=upload.transcription_text,
@@ -261,6 +348,7 @@ def generate_report(db: Session, payload: GenerateReportRequest) -> GeneratedRep
         content, engine = _generate_local_fallback(payload.title, upload.transcription_text, payload.custom_request)
 
     report = GeneratedReport(
+        workspace_id=workspace_id,
         upload_id=upload.id,
         template_id=template.id if template else None,
         title=payload.title,

@@ -26,6 +26,11 @@ def test_validate_upload_checks_mime_type() -> None:
     assert validate_upload(upload) == FileType.AUDIO
 
 
+def test_validate_upload_accepts_recorded_audio_webm() -> None:
+    upload = UploadFile(filename="gravacao.webm", file=io.BytesIO(b"data"), headers=Headers({"content-type": "audio/webm"}))
+    assert validate_upload(upload) == FileType.AUDIO
+
+
 def test_extract_audio_to_mp3_builds_expected_ffmpeg_command(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ffmpeg, "get_settings", lambda: SimpleNamespace(processed_dir=tmp_path, temp_dir=tmp_path))
 

@@ -257,6 +257,28 @@ run-local-prod.bat
 
 Esse comando abre backend e frontend em janelas separadas e tenta abrir o navegador em `http://127.0.0.1:3000`.
 
+## Uso desktop com Electron
+
+Para abrir a versao desktop no Windows:
+
+```powershell
+.\start-desktop.ps1
+```
+
+Ou com duplo clique:
+
+```cmd
+start-desktop.bat
+```
+
+O iniciador usa primeiro a build pronta em `dist-electron/win-unpacked/Media Transcript Studio.exe`. Se ela ainda nao existir, ele cai para `npm run desktop:dev`.
+
+Se quiser registrar a abertura automatica todos os dias no Agendador de Tarefas do Windows:
+
+```powershell
+.\schedule-desktop-daily.ps1 -Time "09:00"
+```
+
 ## Compartilhar com um amigo no Windows
 
 Se você enviar a pasta do projeto para outra pessoa, ela pode seguir só estes três arquivos da raiz, na ordem:
@@ -359,6 +381,47 @@ Cobertura mínima implementada:
 - CRUD de templates;
 - geração de relatório.
 
+## App Desktop Electron para Windows
+
+O projeto agora também pode ser empacotado como aplicativo Windows com Electron.
+
+### O que o build desktop inclui
+
+- frontend Next.js em modo `standalone`;
+- backend FastAPI empacotado com PyInstaller;
+- `ffmpeg` e `ffprobe` incluídos nos recursos do aplicativo;
+- persistência em pasta de usuário do Windows, fora da pasta instalada do programa.
+
+### Como gerar o app desktop
+
+Na raiz do projeto:
+
+```powershell
+npm install
+npm run desktop:build
+```
+
+Artefatos gerados:
+
+- app desembrulhado: `dist-electron/win-unpacked/`
+- instalador Windows: `dist-electron/Media Transcript Studio Setup 1.0.0.exe`
+
+### Como testar o app desktop sem instalador
+
+```powershell
+npx electron-builder --dir
+```
+
+Depois abra:
+
+```powershell
+dist-electron\win-unpacked\Media Transcript Studio.exe
+```
+
+### Persistência no Windows
+
+No modo desktop, o Electron cria a área local do app na pasta de usuário do Windows e o backend recebe esses caminhos automaticamente para banco, uploads, temporários e exports.
+
 ## Limitações conhecidas
 
 - O processamento assíncrono atual roda em background no mesmo processo do FastAPI. Para alto volume, o próximo passo é migrar para uma fila dedicada.
@@ -372,7 +435,7 @@ Cobertura mínima implementada:
 - múltiplos usuários;
 - fila de processamento;
 - exportação DOCX/PDF;
-- empacotamento desktop com Electron ou Tauri.
+- refinamento visual e distribuição assinada do app desktop.
 
 ## Comandos exatos para rodar localmente
 

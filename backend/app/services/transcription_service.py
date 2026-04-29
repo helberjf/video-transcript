@@ -1,3 +1,4 @@
+import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +9,9 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models.enums import TranscriptionEngine
 from app.services.settings_service import get_effective_provider_settings
+
+
+logger = logging.getLogger("transcription")
 
 
 class ProviderExecutionError(RuntimeError):
@@ -106,9 +110,28 @@ def _transcribe_gemini(audio_path: Path, language: str | None, api_key: str) -> 
 
 def _transcribe_whisper(audio_path: Path, language: str | None, model_name: str) -> TranscriptionResult:
     import whisper
+    import torch
 
-    model = whisper.load_model(model_name)
-    result = model.transcribe(str(audio_path), language=_language_hint(language))
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    use_fp16 = device == "cuda"
+
+    logger.info("[whisper] carregando modelo '%s' em %s", model_name, device)
+    print(f"[whisper] carregando modelo '{model_name}' em {device}", flush=True)
+    model = whisper.load_model(model_name, device=device)
+
+    logger.info("[whisper] iniciando transcricao de %s (fp16=%s)", audio_path.name, use_fp16)
+    print(f"[whisper] iniciando transcricao de {audio_path.name} (fp16={use_fp16})", flush=True)
+    start = time.monotonic()
+    result = model.transcribe(
+        str(audio_path),
+        language=_language_hint(language),
+        fp16=use_fp16,
+        verbose=True,
+    )
+    elapsed = time.monotonic() - start
+    logger.info("[whisper] transcricao concluida em %.1fs", elapsed)
+    print(f"[whisper] transcricao concluida em {elapsed:.1f}s", flush=True)
+
     text = (result.get("text") or "").strip()
     if not text:
         raise ProviderExecutionError("Whisper retornou transcrição vazia")
@@ -116,7 +139,7 @@ def _transcribe_whisper(audio_path: Path, language: str | None, model_name: str)
         text=text,
         engine=TranscriptionEngine.WHISPER,
         language_detected=result.get("language") or language,
-        metadata={"model": model_name},
+        metadata={"model": model_name, "device": device},
     )
 
 
