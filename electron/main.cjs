@@ -279,6 +279,7 @@ function startFrontend(paths) {
     HOSTNAME: "127.0.0.1",
     PORT: String(FRONTEND_PORT),
     NEXT_PUBLIC_API_BASE_URL: `http://127.0.0.1:${BACKEND_PORT}/api`,
+    NEXT_PUBLIC_DESKTOP_MODE: "1",
   };
 
   if (app.isPackaged) {

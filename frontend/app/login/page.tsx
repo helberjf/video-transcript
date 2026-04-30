@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "@/components/section-header";
@@ -21,16 +22,25 @@ const PLAN_OPTIONS: { value: WorkspacePlan; label: string; description: string }
   { value: "enterprise", label: "Enterprise", description: "Operacao com volume, auditoria e SSO futuro." },
 ];
 
+const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
+
 export default function LoginPage() {
   const { workspace, loaded, saveWorkspace, resetWorkspace } = useWorkspace();
+  const { data: session, status } = useSession();
   const [form, setForm] = useState<WorkspaceProfile>(workspace);
   const [message, setMessage] = useState<string | null>(null);
   const [activity, setActivity] = useState<WorkspaceActivity[]>([]);
+  const [callbackUrl, setCallbackUrl] = useState("/");
 
   useEffect(() => {
     setForm(workspace);
     setActivity(getWorkspaceActivity(workspace.id));
   }, [workspace]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setCallbackUrl(params.get("callbackUrl") || "/");
+  }, []);
 
   const previewId = useMemo(() => normalizeWorkspaceId(form.id || form.clientName), [form.clientName, form.id]);
 
@@ -55,13 +65,85 @@ export default function LoginPage() {
     setMessage("Workspace voltou para o cliente demo local.");
   };
 
+  if (!isDesktopMode && status !== "authenticated") {
+    return (
+      <div className="mx-auto grid min-h-[calc(100vh-40px)] max-w-6xl gap-6 py-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+        <section className="space-y-6">
+          <Link href="/" className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-ink">
+            FormReport AI
+          </Link>
+          <div className="space-y-4">
+            <p className="inline-flex rounded-full border border-tide/25 bg-tide/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-aqua">
+              Acesso web
+            </p>
+            <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight tracking-tight text-ink sm:text-5xl">
+              Entre com Google para criar seu workspace
+            </h1>
+            <p className="max-w-xl text-base leading-8 text-slate">
+              Auth.js usa o OAuth do Google sem mensalidade por usuario. Depois do login, cada cliente fica com historico, modelos e documentos separados.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button className="button-primary" type="button" onClick={() => void signIn("google", { callbackUrl })}>
+              Entrar com Google
+            </button>
+            <Link className="button-secondary" href="/billing">
+              Ver planos
+            </Link>
+          </div>
+        </section>
+
+        <section className="panel p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sand">Fluxo comercial</p>
+          <div className="mt-5 grid gap-4">
+            {[
+              ["Login", "Google identifica o responsavel e cria o workspace do cliente."],
+              ["Formulario", "A IA detecta campos alteraveis em imagens, PDFs e documentos."],
+              ["Documento final", "O usuario revisa respostas e exporta Word/PDF."],
+            ].map(([title, description]) => (
+              <div key={title} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                <p className="font-semibold text-ink">{title}</p>
+                <p className="mt-1 text-sm leading-6 text-slate">{description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Cliente e workspace"
-        title="Login comercial do MVP"
-        description="Defina o cliente ativo para separar historico, modelos e relatorios por workspace. Esta camada local prepara a integracao com Clerk, Auth0 ou SSO."
+        title={isDesktopMode ? "Workspace local do desktop" : "Conta Google e workspace do cliente"}
+        description={
+          isDesktopMode
+            ? "O desktop nao exige login. Defina o cliente ativo para separar historico, modelos e relatorios no ambiente local."
+            : "O webapp usa Auth.js com Google para autenticar sem custo por usuario e manter cada cliente em seu workspace."
+        }
       />
+
+      <section className="panel p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate">{isDesktopMode ? "Desktop" : "Sessao Google"}</p>
+            <h3 className="mt-2 text-xl font-semibold">
+              {isDesktopMode ? "Acesso local sem login" : session?.user?.email ?? "Conta conectada"}
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-slate">
+              {isDesktopMode
+                ? "Use este modo para clientes que querem operar o aplicativo instalado sem autenticar na nuvem."
+                : "Esta conta controla o workspace web e pode abrir o checkout Stripe."}
+            </p>
+          </div>
+          {!isDesktopMode ? (
+            <button className="button-secondary" type="button" onClick={() => void signOut({ callbackUrl: "/" })}>
+              Sair do Google
+            </button>
+          ) : null}
+        </div>
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <section className="panel p-6">
@@ -70,7 +152,7 @@ export default function LoginPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sand">Acesso do cliente</p>
               <h3 className="mt-2 text-2xl font-semibold tracking-tight">Entrar em um workspace</h3>
               <p className="mt-2 text-sm leading-6 text-slate">
-                Para o MVP, o login e local e demonstra a separacao por cliente via cabecalho de workspace no backend.
+                Defina os dados comerciais do cliente ativo para separar uploads, modelos, formularios e relatorios.
               </p>
             </div>
 
@@ -156,6 +238,11 @@ export default function LoginPage() {
               <Link className="button-secondary" href="/">
                 Voltar ao dashboard
               </Link>
+              {!isDesktopMode ? (
+                <Link className="button-secondary" href="/billing">
+                  Ver cobranca
+                </Link>
+              ) : null}
             </div>
 
             {message ? <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200">{message}</p> : null}

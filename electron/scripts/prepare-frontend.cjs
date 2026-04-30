@@ -15,6 +15,7 @@ run(npmCommand(), ["run", "build"], {
   env: {
     ...process.env,
     NEXT_PUBLIC_API_BASE_URL: backendApiBaseUrl,
+    NEXT_PUBLIC_DESKTOP_MODE: "1",
   },
 });
 

@@ -12,8 +12,10 @@
     "docx": "^9.6.1",
     "jspdf": "^4.2.1",
     "next": "15.5.15",
+    "next-auth": "^4.24.14",
     "react": "19.0.1",
-    "react-dom": "19.0.1"
+    "react-dom": "19.0.1",
+    "stripe": "^22.1.0"
   },
   "devDependencies": {
     "@types/node": "22.10.2",

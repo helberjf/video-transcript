@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -13,8 +14,11 @@ const navigation = [
   { href: "/templates", label: "Modelos", description: "Documentos base" },
   { href: "/forms", label: "Formularios", description: "Preenchimento" },
   { href: "/settings", label: "Ajustes", description: "IA e exportacao" },
-  { href: "/login", label: "Cliente", description: "Workspace" },
+  { href: "/billing", label: "Plano", description: "Stripe" },
+  { href: "/login", label: "Conta", description: "Google" },
 ];
+
+const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
 
 function getPageLabel(pathname: string): string {
   const activeItem = navigation
@@ -28,7 +32,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const pageLabel = getPageLabel(pathname);
   const { workspace } = useWorkspace();
+  const { data: session, status } = useSession();
   const planLabel = workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "pro" ? "Pro" : "Teste";
+  const showPublicLayout =
+    !isDesktopMode &&
+    ((pathname === "/" && status !== "authenticated") ||
+      pathname.startsWith("/login") ||
+      (pathname.startsWith("/billing") && status !== "authenticated"));
+
+  if (showPublicLayout) {
+    return <main className="min-h-screen bg-mesh px-4 py-5 sm:px-6 lg:px-8">{children}</main>;
+  }
 
   return (
     <div className="min-h-screen">
@@ -44,7 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
 
             <div className="hidden rounded-lg border border-tide/25 bg-tide/10 px-3 py-2 text-xs font-medium text-aqua sm:block lg:mt-4">
-              Backend local + IA
+              {isDesktopMode ? "Desktop local sem login" : status === "authenticated" ? "Webapp autenticado" : "Backend local + IA"}
             </div>
           </div>
 
@@ -81,11 +95,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <Link
-            href="/login"
+            href={isDesktopMode ? "/login" : "/billing"}
             className="mt-4 hidden rounded-xl border border-tide/20 bg-tide/[0.08] p-4 text-xs leading-5 text-slate transition hover:border-sand/40 lg:block"
           >
             <p className="font-semibold text-ink">{workspace.clientName}</p>
-            <p className="mt-1 truncate">{workspace.ownerEmail}</p>
+            <p className="mt-1 truncate">{session?.user?.email ?? workspace.ownerEmail}</p>
             <p className="mt-3 inline-flex rounded-full border border-sand/25 bg-sand/10 px-3 py-1 font-semibold text-sand">
               Plano {planLabel}
             </p>
@@ -102,6 +116,15 @@ export function AppShell({ children }: { children: ReactNode }) {
               <p className="mt-1 text-xs text-slate">{workspace.clientName} - {workspace.segment}</p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {!isDesktopMode && status === "authenticated" ? (
+                <button className="button-secondary px-4 py-2" type="button" onClick={() => void signOut({ callbackUrl: "/" })}>
+                  Sair
+                </button>
+              ) : !isDesktopMode ? (
+                <button className="button-secondary px-4 py-2" type="button" onClick={() => void signIn("google", { callbackUrl: "/" })}>
+                  Entrar
+                </button>
+              ) : null}
               <Link className="button-secondary px-4 py-2" href="/forms">
                 Preencher documento
               </Link>

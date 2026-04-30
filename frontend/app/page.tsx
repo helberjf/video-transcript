@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -29,11 +30,14 @@ import { appendWorkspaceActivity } from "@/lib/workspace-store";
 
 const ACCEPTED_MEDIA = ".mp4,.mov,.mkv,.avi,.webm,.mp3,.wav,.m4a,.aac,.ogg,.flac";
 const ACCEPTED_MODEL_DOCUMENTS = ".txt,.md,.markdown,.csv,.odt,.docx,.pdf,.png,.jpg,.jpeg,.webp,image/*";
+const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
 
 
 export default function DashboardPage() {
   const router = useRouter();
   const { workspace } = useWorkspace();
+  const { status } = useSession();
+  const showDashboard = isDesktopMode || status === "authenticated";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modelFileInputRef = useRef<HTMLInputElement | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -59,6 +63,10 @@ export default function DashboardPage() {
   const [formTemplateCount, setFormTemplateCount] = useState(0);
 
   useEffect(() => {
+    if (!showDashboard) {
+      return;
+    }
+
     void getDashboardStats().then(setStats).catch((err: Error) => setStatsError(err.message));
     void getSettings()
       .then((settings) => {
@@ -74,7 +82,7 @@ export default function DashboardPage() {
         setFormTemplateCount(templates.filter((template) => (template.form_fields?.length ?? 0) > 0).length);
       })
       .catch(() => undefined);
-  }, []);
+  }, [showDashboard]);
 
   const effectiveTranscriptionProvider: TranscriptionProvider = useApi ? transcriptionProvider : "whisper";
   const transcriptionProviderDescription = !useApi
@@ -235,6 +243,10 @@ export default function DashboardPage() {
       setModelAiBusy(false);
     }
   };
+
+  if (!showDashboard) {
+    return <PublicLanding onGoogleLogin={() => void signIn("google", { callbackUrl: "/" })} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -581,6 +593,123 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+      </section>
+    </div>
+  );
+}
+
+function PublicLanding({ onGoogleLogin }: { onGoogleLogin: () => void }) {
+  return (
+    <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-7xl flex-col">
+      <header className="flex items-center justify-between gap-4 py-3">
+        <Link href="/" className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-ink">
+          FormReport AI
+        </Link>
+        <div className="flex items-center gap-2">
+          <Link className="button-secondary px-4 py-2" href="/billing">
+            Planos
+          </Link>
+          <button className="button-primary px-4 py-2" type="button" onClick={onGoogleLogin}>
+            Entrar com Google
+          </button>
+        </div>
+      </header>
+
+      <section className="grid flex-1 gap-8 py-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:py-12">
+        <div className="space-y-6">
+          <div className="inline-flex rounded-full border border-tide/25 bg-tide/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-aqua">
+            Documento, imagem, audio ou video
+          </div>
+          <div className="space-y-4">
+            <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight tracking-tight text-ink sm:text-5xl lg:text-6xl">
+              FormReport AI
+            </h1>
+            <p className="max-w-2xl text-lg leading-8 text-slate">
+              Suba um arquivo, deixe a IA encontrar o que e preenchivel, revise os campos e gere o documento ou relatorio final para exportar.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Link className="button-primary w-full" href="/login">
+              Criar formulario
+            </Link>
+            <Link className="button-secondary w-full" href="/login">
+              Preencher documento
+            </Link>
+            <Link className="button-secondary w-full" href="/login">
+              Gerar relatorio
+            </Link>
+          </div>
+          <div className="grid gap-3 text-sm text-slate sm:grid-cols-3">
+            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+              <p className="font-semibold text-ink">1. Detecta campos</p>
+              <p className="mt-1 leading-6">A IA transforma contratos, fichas e imagens em formularios revisaveis.</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+              <p className="font-semibold text-ink">2. Preenche com audio</p>
+              <p className="mt-1 leading-6">O cliente digita ou grava respostas para completar cada campo.</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+              <p className="font-semibold text-ink">3. Exporta pronto</p>
+              <p className="mt-1 leading-6">Revisao humana antes de gerar Word, PDF ou relatorio final.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-navy/80 p-4 shadow-panel sm:p-6">
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-sand via-tide to-aqua" />
+          <div className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+            <div className="rounded-lg border border-white/10 bg-midnight/70 p-4">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sand">Modelo detectado</p>
+                <span className="rounded-full bg-tide/15 px-3 py-1 text-xs font-semibold text-aqua">IA</span>
+              </div>
+              <div className="space-y-3 text-sm leading-7 text-slate">
+                <p className="rounded border border-white/10 bg-white/[0.04] p-3">
+                  Contrato de prestacao para <span className="underline decoration-sand decoration-2 underline-offset-4">cliente</span>
+                </p>
+                <p className="rounded border border-white/10 bg-white/[0.04] p-3">
+                  Vigencia de <span className="underline decoration-sand decoration-2 underline-offset-4">data inicial</span> ate{" "}
+                  <span className="underline decoration-sand decoration-2 underline-offset-4">data final</span>
+                </p>
+                <p className="rounded border border-white/10 bg-white/[0.04] p-3">
+                  Valor mensal: <span className="underline decoration-sand decoration-2 underline-offset-4">valor</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">Formulario criado</p>
+              <div className="mt-4 space-y-3">
+                {["Nome do cliente", "Data inicial", "Data final", "Valor mensal"].map((label, index) => (
+                  <div key={label}>
+                    <label className="mb-1 block text-xs font-semibold text-slate">{label}</label>
+                    <div className="h-10 rounded-lg border border-white/10 bg-midnight/70 px-3 py-2 text-sm text-ink">
+                      {index === 0 ? "Cliente Exemplo Ltda." : index === 3 ? "R$ 4.900,00" : "__/__/____"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-lg border border-sand/20 bg-sand/10 px-4 py-3 text-sm text-sand">
+                Documento pronto para revisar e exportar.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 pb-8 md:grid-cols-3">
+        <Link className="rounded-lg border border-white/10 bg-white/[0.04] p-5 transition hover:border-sand/35" href="/billing">
+          <p className="text-lg font-semibold text-ink">Assinatura Stripe</p>
+          <p className="mt-2 text-sm leading-6 text-slate">Planos Pro e Enterprise com checkout seguro.</p>
+        </Link>
+        <Link className="rounded-lg border border-white/10 bg-white/[0.04] p-5 transition hover:border-sand/35" href="/login">
+          <p className="text-lg font-semibold text-ink">Login Google gratuito</p>
+          <p className="mt-2 text-sm leading-6 text-slate">Auth.js sem custo por usuario para clientes do webapp.</p>
+        </Link>
+        <Link className="rounded-lg border border-white/10 bg-white/[0.04] p-5 transition hover:border-sand/35" href="/login">
+          <p className="text-lg font-semibold text-ink">Workspace por cliente</p>
+          <p className="mt-2 text-sm leading-6 text-slate">Historico, modelos e relatorios separados por conta.</p>
+        </Link>
       </section>
     </div>
   );
