@@ -51,6 +51,8 @@ temp-whisper-check/
 # Environment variables
 .env
 .env.local
+/.env.vercel
+backend/.env.vps
 
 # Temporary files
 temp/

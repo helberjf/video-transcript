@@ -50,7 +50,12 @@ function Stop-ExistingBackendIfNeeded {
     }
 
     $projectRoot = Split-Path -Parent $PSScriptRoot
-    $hasBackendCommand = $commandLine -like "*uvicorn app.main:app*" -or $parentCommandLine -like "*uvicorn app.main:app*"
+    $hasBackendCommand = (
+        $commandLine -like "*uvicorn app.main:app*" -or
+        $parentCommandLine -like "*uvicorn app.main:app*" -or
+        $commandLine -like "*run_backend.py*" -or
+        $parentCommandLine -like "*run_backend.py*"
+    )
     $matchesProjectPath = (
         $commandLine -like "*$projectRoot*" -or
         $parentCommandLine -like "*$projectRoot*" -or
@@ -95,5 +100,6 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-Stop-ExistingBackendIfNeeded -Port 8000
-& $pythonPath -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+$backendPort = [int](& $pythonPath -c "from app.core.config import get_settings; print(get_settings().app_port)")
+Stop-ExistingBackendIfNeeded -Port $backendPort
+& $pythonPath "run_backend.py" --reload

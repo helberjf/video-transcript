@@ -7,4 +7,4 @@ if [ ! -f .env ] && [ -f .env.example ]; then
   cp .env.example .env
 fi
 
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+python run_backend.py --reload
