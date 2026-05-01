@@ -2,5 +2,5 @@
   "framework": "nextjs",
   "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/.next",
-  "installCommand": "npm install --ignore-scripts --no-audit --no-fund && npm --prefix frontend install --no-audit --no-fund"
+  "installCommand": "npm --prefix frontend install --no-audit --no-fund"
 }

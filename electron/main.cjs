@@ -37,8 +37,12 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function npmCommand() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
+function nodeCommand() {
+  const npmNodePath = process.env.npm_node_execpath;
+  if (npmNodePath && fs.existsSync(npmNodePath)) {
+    return npmNodePath;
+  }
+  return process.platform === "win32" ? "node.exe" : "node";
 }
 
 function toSqliteUrl(filePath) {
@@ -303,8 +307,15 @@ function startFrontend(paths) {
       stdio: ["ignore", "pipe", "pipe"],
     });
   } else {
-    frontendProcess = spawn(npmCommand(), ["run", "dev"], {
-      cwd: projectPath("frontend"),
+    const frontendDir = projectPath("frontend");
+    const devScript = path.join(frontendDir, "scripts", "run-next-dev.mjs");
+    if (!fs.existsSync(devScript)) {
+      throw new Error(`Script do frontend desktop nao encontrado em ${devScript}`);
+    }
+    log(`Executando frontend local em ${devScript}`);
+
+    frontendProcess = spawn(nodeCommand(), [devScript], {
+      cwd: frontendDir,
       env: {
         ...frontendEnv,
         NODE_ENV: "development",

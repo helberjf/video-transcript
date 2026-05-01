@@ -6,9 +6,14 @@ import { createRequire } from "node:module";
 
 import { clearNextDevCache } from "./clear-next-dev-cache.mjs";
 
-const HOST = "127.0.0.1";
-const DEFAULT_PORT = 3000;
+const HOST = process.env.HOSTNAME || "127.0.0.1";
+const DEFAULT_PORT = Number(process.env.PORT || 3000);
 const PORT_SCAN_LIMIT = 10;
+const HAS_EXPLICIT_PORT = Boolean(process.env.PORT);
+
+if (!Number.isInteger(DEFAULT_PORT) || DEFAULT_PORT <= 0 || DEFAULT_PORT > 65535) {
+  throw new Error(`Invalid PORT value: ${process.env.PORT}`);
+}
 
 const require = createRequire(import.meta.url);
 
@@ -138,6 +143,10 @@ async function resolvePort(cwd) {
 
   if (await isPortAvailable(DEFAULT_PORT, HOST)) {
     return DEFAULT_PORT;
+  }
+
+  if (HAS_EXPLICIT_PORT) {
+    throw new Error(`Port ${DEFAULT_PORT} is already in use on ${HOST}.`);
   }
 
   for (let port = DEFAULT_PORT + 1; port < DEFAULT_PORT + 1 + PORT_SCAN_LIMIT; port += 1) {
