@@ -2,9 +2,13 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getAppUrl, getStripe, getStripePriceId, type BillingPlan } from "@/lib/stripe";
+import { ensureWorkspaceForUser } from "@/lib/workspace-db";
 
-const PLANS = new Set<BillingPlan>(["pro", "enterprise"]);
+const PLANS = new Set<BillingPlan>(["pro", "business"]);
+
+export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -14,7 +18,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Login necessario para assinar." }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { plan?: BillingPlan; workspaceId?: string };
+  const body = (await request.json().catch(() => ({}))) as { plan?: BillingPlan };
   const plan = body.plan;
 
   if (!plan || !PLANS.has(plan)) {
@@ -25,6 +29,11 @@ export async function POST(request: Request) {
     const stripe = getStripe();
     const priceId = getStripePriceId(plan);
     const appUrl = getAppUrl(request);
+    const user = session.user?.id ? await prisma.user.findUnique({ where: { id: session.user.id } }) : null;
+    if (!user) {
+      return NextResponse.json({ error: "Usuario nao encontrado." }, { status: 401 });
+    }
+    const workspace = await ensureWorkspaceForUser(user);
     const existingCustomers = await stripe.customers.list({ email, limit: 1 });
     const customer =
       existingCustomers.data[0] ??
@@ -32,9 +41,14 @@ export async function POST(request: Request) {
         email,
         name: session.user?.name ?? undefined,
         metadata: {
-          workspace_id: body.workspaceId || session.user?.workspaceId || email,
+          workspace_id: workspace.id,
         },
       }));
+
+    await prisma.workspace.update({
+      where: { id: workspace.id },
+      data: { stripeCustomerId: customer.id },
+    });
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -46,12 +60,12 @@ export async function POST(request: Request) {
       cancel_url: `${appUrl}/billing?canceled=1`,
       metadata: {
         plan,
-        workspace_id: body.workspaceId || session.user?.workspaceId || email,
+        workspace_id: workspace.id,
       },
       subscription_data: {
         metadata: {
           plan,
-          workspace_id: body.workspaceId || session.user?.workspaceId || email,
+          workspace_id: workspace.id,
         },
       },
     });

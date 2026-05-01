@@ -280,6 +280,9 @@ function startFrontend(paths) {
     PORT: String(FRONTEND_PORT),
     NEXT_PUBLIC_API_BASE_URL: `http://127.0.0.1:${BACKEND_PORT}/api`,
     NEXT_PUBLIC_DESKTOP_MODE: "1",
+    NEXTAUTH_URL: `http://127.0.0.1:${FRONTEND_PORT}`,
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || "formreport-desktop-local-secret",
+    AUTH_SECRET: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "formreport-desktop-local-secret",
   };
 
   if (app.isPackaged) {

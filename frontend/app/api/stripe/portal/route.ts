@@ -2,7 +2,11 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getAppUrl, getStripe } from "@/lib/stripe";
+import { ensureWorkspaceForUser } from "@/lib/workspace-db";
+
+export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -14,8 +18,15 @@ export async function POST(request: Request) {
 
   try {
     const stripe = getStripe();
-    const customers = await stripe.customers.list({ email, limit: 1 });
-    const customer = customers.data[0];
+    const user = session.user?.id ? await prisma.user.findUnique({ where: { id: session.user.id } }) : null;
+    if (!user) {
+      return NextResponse.json({ error: "Usuario nao encontrado." }, { status: 401 });
+    }
+    const workspace = await ensureWorkspaceForUser(user);
+    const customer =
+      workspace.stripeCustomerId
+        ? await stripe.customers.retrieve(workspace.stripeCustomerId).then((value) => ("deleted" in value && value.deleted ? null : value))
+        : (await stripe.customers.list({ email, limit: 1 })).data[0];
 
     if (!customer) {
       return NextResponse.json({ error: "Cliente ainda nao possui assinatura Stripe." }, { status: 404 });

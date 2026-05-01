@@ -1,4 +1,4 @@
-export type WorkspacePlan = "trial" | "pro" | "enterprise";
+export type WorkspacePlan = "trial" | "pro" | "business" | "enterprise";
 
 export interface WorkspaceProfile {
   id: string;
@@ -7,6 +7,10 @@ export interface WorkspaceProfile {
   ownerEmail: string;
   segment: string;
   plan: WorkspacePlan;
+  billingStatus?: string;
+  creditsUsed?: number;
+  creditsLimit?: number | null;
+  onboardingStep?: number;
   createdAt: string;
 }
 
@@ -27,6 +31,10 @@ export const DEFAULT_WORKSPACE: WorkspaceProfile = {
   ownerEmail: "demo@formreport.local",
   segment: "Operacoes documentais",
   plan: "trial",
+  billingStatus: "trialing",
+  creditsUsed: 0,
+  creditsLimit: 20,
+  onboardingStep: 0,
   createdAt: new Date(0).toISOString(),
 };
 

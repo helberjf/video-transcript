@@ -35,7 +35,7 @@ const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { workspace } = useWorkspace();
+  const { workspace, saveWorkspace } = useWorkspace();
   const { status } = useSession();
   const showDashboard = isDesktopMode || status === "authenticated";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -45,7 +45,7 @@ export default function DashboardPage() {
   const [quickError, setQuickError] = useState<string | null>(null);
   const [quickFile, setQuickFile] = useState<File | null>(null);
   const [language, setLanguage] = useState("pt-BR");
-  const [useApi, setUseApi] = useState(true);
+  const [useApi, setUseApi] = useState(!isDesktopMode);
   const [whisperModel, setWhisperModel] = useState("medium");
   const [transcriptionProvider, setTranscriptionProvider] = useState<TranscriptionProvider>("openai");
   const [dragActive, setDragActive] = useState(false);
@@ -259,7 +259,9 @@ export default function DashboardPage() {
                 Suba um documento, imagem, audio ou video. A IA cria o formulario e entrega o documento pronto para revisar.
               </h1>
               <p className="max-w-2xl text-sm leading-6 text-slate">
-                Workspace de cliente, modelos reutilizaveis, revisao humana e exportacao Word/PDF no mesmo fluxo comercial.
+                {isDesktopMode
+                  ? "Tudo roda localmente neste computador, sem login e sem cobranca. Ideal para organizar modelos, formularios e relatorios de uso pessoal."
+                  : "Workspace de cliente, modelos reutilizaveis, revisao humana e exportacao Word/PDF no mesmo fluxo comercial."}
               </p>
             </div>
 
@@ -277,7 +279,7 @@ export default function DashboardPage() {
 
             <div className="rounded-lg border border-tide/20 bg-tide/[0.08] p-4 text-sm leading-6 text-slate">
               <span className="font-semibold text-ink">Cliente ativo:</span> {workspace.clientName} - {workspace.segment}.{" "}
-              <Link className="font-semibold text-sand" href="/login">Trocar workspace</Link>
+              <Link className="font-semibold text-sand" href="/login">{isDesktopMode ? "Ajustar cliente local" : "Trocar workspace"}</Link>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -446,6 +448,58 @@ export default function DashboardPage() {
       </section>
 
       <section className="panel p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sand">Onboarding guiado</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+              {isDesktopMode ? "Comece pelo fluxo local completo" : "Comece pelo fluxo comercial completo"}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate">
+              {isDesktopMode
+                ? "Progresso salvo neste computador. Os arquivos, modelos e relatorios ficam no ambiente local."
+                : `Progresso salvo no workspace. Uso mensal: ${workspace.creditsUsed ?? 0}/${workspace.creditsLimit ?? "custom"} creditos.`}
+            </p>
+          </div>
+          {isDesktopMode ? (
+            <Link className="button-secondary" href="/settings">
+              Ajustar pasta e IA
+            </Link>
+          ) : (
+            <Link className="button-secondary" href="/pricing">
+              Ver limites dos planos
+            </Link>
+          )}
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          {[
+            ["Suba um arquivo", "Envie imagem, documento, audio ou video.", "/uploads"],
+            ["Revise campos", "Confira o formulario detectado pela IA.", "/templates"],
+            ["Gere documento", "Preencha, revise e exporte Word/PDF.", "/forms"],
+          ].map(([title, description, href], index) => {
+            const completed = (workspace.onboardingStep ?? 0) > index;
+            return (
+              <div key={title} className={`rounded-lg border p-4 ${completed ? "border-tide/30 bg-tide/10" : "border-white/10 bg-white/[0.04]"}`}>
+                <p className="text-sm font-semibold text-ink">{index + 1}. {title}</p>
+                <p className="mt-2 text-sm leading-6 text-slate">{description}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link className="button-secondary px-3 py-2" href={href}>
+                    Abrir
+                  </Link>
+                  <button
+                    className="button-secondary px-3 py-2"
+                    type="button"
+                    onClick={() => saveWorkspace({ ...workspace, onboardingStep: Math.max(workspace.onboardingStep ?? 0, index + 1) })}
+                  >
+                    {completed ? "Concluido" : "Marcar"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="panel p-6">
         <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-4">
             <div>
@@ -539,9 +593,13 @@ export default function DashboardPage() {
           <p className="mt-2 text-sm text-slate">Idioma usado nas transcricoes e relatorios.</p>
         </div>
         <div className="panel p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate">Plano</p>
-          <p className="mt-3 text-xl font-semibold">{workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "pro" ? "Pro" : "Teste"}</p>
-          <p className="mt-2 text-sm text-slate">{settingsSummary?.export_directory ? "Exportacao configurada" : "Word/PDF via exportacao local"}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate">{isDesktopMode ? "Modo" : "Plano"}</p>
+          <p className="mt-3 text-xl font-semibold">
+            {isDesktopMode ? "Local" : workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "pro" ? "Pro" : "Teste"}
+          </p>
+          <p className="mt-2 text-sm text-slate">
+            {isDesktopMode ? "Sem login, sem cobranca e com arquivos locais." : settingsSummary?.export_directory ? "Exportacao configurada" : "Word/PDF via exportacao local"}
+          </p>
         </div>
       </section>
 
@@ -606,7 +664,7 @@ function PublicLanding({ onGoogleLogin }: { onGoogleLogin: () => void }) {
           FormReport AI
         </Link>
         <div className="flex items-center gap-2">
-          <Link className="button-secondary px-4 py-2" href="/billing">
+          <Link className="button-secondary px-4 py-2" href="/pricing">
             Planos
           </Link>
           <button className="button-primary px-4 py-2" type="button" onClick={onGoogleLogin}>
@@ -698,9 +756,9 @@ function PublicLanding({ onGoogleLogin }: { onGoogleLogin: () => void }) {
       </section>
 
       <section className="grid gap-4 pb-8 md:grid-cols-3">
-        <Link className="rounded-lg border border-white/10 bg-white/[0.04] p-5 transition hover:border-sand/35" href="/billing">
+        <Link className="rounded-lg border border-white/10 bg-white/[0.04] p-5 transition hover:border-sand/35" href="/pricing">
           <p className="text-lg font-semibold text-ink">Assinatura Stripe</p>
-          <p className="mt-2 text-sm leading-6 text-slate">Planos Pro e Enterprise com checkout seguro.</p>
+          <p className="mt-2 text-sm leading-6 text-slate">Planos Pro e Business com checkout seguro.</p>
         </Link>
         <Link className="rounded-lg border border-white/10 bg-white/[0.04] p-5 transition hover:border-sand/35" href="/login">
           <p className="text-lg font-semibold text-ink">Login Google gratuito</p>

@@ -13,6 +13,7 @@ ensureDir(resourcesDir);
 ensureDir(pyInstallerDir);
 
 run(python, ["-m", "pip", "install", "pyinstaller"]);
+run(python, ["-m", "pip", "install", "-r", path.join(backendDir, "requirements.txt")]);
 
 run(python, [
   "-m",

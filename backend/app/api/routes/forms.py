@@ -16,6 +16,7 @@ from app.schemas.form import (
     FormFillResponse,
 )
 from app.services.form_service import build_form_export, detect_form_fields, fill_form_from_fields, fill_form_from_text
+from app.services.usage_service import consume_credits
 
 
 router = APIRouter(prefix="/api", tags=["forms"])
@@ -28,6 +29,7 @@ def fill_form_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> FormFillResponse:
     try:
+        consume_credits(db, workspace_id, "form_generation", 1, metadata={"template_id": payload.template_id})
         return call_with_workspace(fill_form_from_text, db, payload, workspace_id=workspace_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -40,6 +42,7 @@ def fill_form_fields_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> FormFillResponse:
     try:
+        consume_credits(db, workspace_id, "form_generation", 1, metadata={"template_id": payload.template_id})
         return call_with_workspace(fill_form_from_fields, db, payload, workspace_id=workspace_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -58,7 +61,7 @@ def detect_form_fields_endpoint(
 
 
 @router.post("/forms/export")
-def export_form_endpoint(payload: FormExportRequest) -> FileResponse:
+def export_form_endpoint(payload: FormExportRequest, workspace_id: str = Depends(get_workspace_id)) -> FileResponse:
     try:
         artifact = build_form_export(payload.title, payload.content, payload.extension)
     except ValueError as exc:

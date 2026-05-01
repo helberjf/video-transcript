@@ -14,14 +14,17 @@ const navigation = [
   { href: "/templates", label: "Modelos", description: "Documentos base" },
   { href: "/forms", label: "Formularios", description: "Preenchimento" },
   { href: "/settings", label: "Ajustes", description: "IA e exportacao" },
+  { href: "/pricing", label: "Precos", description: "Creditos" },
   { href: "/billing", label: "Plano", description: "Stripe" },
-  { href: "/login", label: "Conta", description: "Google" },
+  { href: "/login", label: "Cliente", description: "Workspace" },
 ];
 
 const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
+const desktopHiddenRoutes = new Set(["/pricing", "/billing"]);
+const visibleNavigation = isDesktopMode ? navigation.filter((item) => !desktopHiddenRoutes.has(item.href)) : navigation;
 
 function getPageLabel(pathname: string): string {
-  const activeItem = navigation
+  const activeItem = visibleNavigation
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
     .sort((left, right) => right.href.length - left.href.length)[0];
 
@@ -33,11 +36,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pageLabel = getPageLabel(pathname);
   const { workspace } = useWorkspace();
   const { data: session, status } = useSession();
-  const planLabel = workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "pro" ? "Pro" : "Teste";
+  const planLabel = workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "business" ? "Business" : workspace.plan === "pro" ? "Pro" : "Trial";
   const showPublicLayout =
     !isDesktopMode &&
     ((pathname === "/" && status !== "authenticated") ||
       pathname.startsWith("/login") ||
+      pathname.startsWith("/pricing") ||
       (pathname.startsWith("/billing") && status !== "authenticated"));
 
   if (showPublicLayout) {
@@ -63,7 +67,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="mt-4 flex w-full min-w-0 gap-2 overflow-x-auto pb-1 lg:mt-6 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0">
-            {navigation.map((item) => {
+            {visibleNavigation.map((item) => {
               const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
               return (
                 <Link
@@ -101,7 +105,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="font-semibold text-ink">{workspace.clientName}</p>
             <p className="mt-1 truncate">{session?.user?.email ?? workspace.ownerEmail}</p>
             <p className="mt-3 inline-flex rounded-full border border-sand/25 bg-sand/10 px-3 py-1 font-semibold text-sand">
-              Plano {planLabel}
+              {isDesktopMode ? "Modo local" : `Plano ${planLabel}`}
             </p>
           </Link>
         </aside>

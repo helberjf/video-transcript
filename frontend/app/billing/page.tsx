@@ -6,32 +6,10 @@ import { useEffect, useState } from "react";
 
 import { SectionHeader } from "@/components/section-header";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { PLAN_DEFINITIONS, isPaidCheckoutPlan } from "@/lib/billing-plans";
 import type { BillingPlan } from "@/lib/stripe";
 
 const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
-
-const paidPlans: Array<{
-  id: BillingPlan;
-  name: string;
-  price: string;
-  description: string;
-  features: string[];
-}> = [
-  {
-    id: "pro",
-    name: "Pro",
-    price: "Mensal",
-    description: "Para equipes que geram documentos e relatorios toda semana.",
-    features: ["Historico por cliente", "Modelos reutilizaveis", "Exportacao Word/PDF", "Revisao humana antes de gerar"],
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    price: "Volume",
-    description: "Para operacoes com mais clientes, auditoria e regras internas.",
-    features: ["Workspaces ilimitados", "Fluxos por area", "Suporte a implantacao", "Governanca de dados"],
-  },
-];
 
 export default function BillingPage() {
   const { data: session, status } = useSession();
@@ -44,6 +22,33 @@ export default function BillingPage() {
       setMessage("Checkout cancelado. Nenhuma alteracao foi feita no plano.");
     }
   }, []);
+
+  if (isDesktopMode) {
+    return (
+      <div className="space-y-6">
+        <SectionHeader
+          eyebrow="Modo local"
+          title="Desktop local sem login e sem cobranca"
+          description="Esta versao foi pensada para uso em um computador. Os dados ficam no workspace local e voce pode criar modelos, preencher formularios e exportar documentos sem Stripe."
+        />
+
+        <section className="grid gap-4 md:grid-cols-3">
+          <Link className="panel p-5 transition hover:border-sand/40 hover:bg-white/[0.06]" href="/uploads">
+            <p className="text-lg font-semibold text-ink">Subir arquivo</p>
+            <p className="mt-2 text-sm leading-6 text-slate">Transforme audio, video, imagem ou documento em relatorio.</p>
+          </Link>
+          <Link className="panel p-5 transition hover:border-sand/40 hover:bg-white/[0.06]" href="/templates">
+            <p className="text-lg font-semibold text-ink">Criar modelo</p>
+            <p className="mt-2 text-sm leading-6 text-slate">Detecte campos ou marque palavras alteraveis manualmente.</p>
+          </Link>
+          <Link className="panel p-5 transition hover:border-sand/40 hover:bg-white/[0.06]" href="/settings">
+            <p className="text-lg font-semibold text-ink">Ajustes locais</p>
+            <p className="mt-2 text-sm leading-6 text-slate">Configure IA, exportacao e preferencias deste computador.</p>
+          </Link>
+        </section>
+      </div>
+    );
+  }
 
   const startCheckout = async (plan: BillingPlan) => {
     if (isDesktopMode) {
@@ -125,7 +130,7 @@ export default function BillingPage() {
           </p>
           <ul className="mt-5 space-y-2 text-sm text-slate">
             <li>Login Google sem custo por usuario</li>
-            <li>Workspace local de demonstracao</li>
+            <li>20 creditos por mes</li>
             <li>Fluxo completo de revisao</li>
           </ul>
           <Link className="button-secondary mt-6 w-full" href="/templates">
@@ -133,9 +138,9 @@ export default function BillingPage() {
           </Link>
         </div>
 
-        {paidPlans.map((plan) => (
+        {PLAN_DEFINITIONS.filter((plan) => plan.id !== "trial").map((plan) => (
           <div key={plan.id} className="panel p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sand">{plan.price}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sand">{plan.priceLabel}</p>
             <h3 className="mt-3 text-2xl font-semibold">{plan.name}</h3>
             <p className="mt-2 min-h-12 text-sm leading-6 text-slate">{plan.description}</p>
             <ul className="mt-5 space-y-2 text-sm text-slate">
@@ -146,10 +151,14 @@ export default function BillingPage() {
             <button
               className="button-primary mt-6 w-full"
               type="button"
-              disabled={busyPlan !== null || isDesktopMode}
-              onClick={() => void startCheckout(plan.id)}
+              disabled={busyPlan !== null || isDesktopMode || !isPaidCheckoutPlan(plan.id)}
+              onClick={() => {
+                if (isPaidCheckoutPlan(plan.id)) {
+                  void startCheckout(plan.id);
+                }
+              }}
             >
-              {busyPlan === plan.id ? "Abrindo checkout..." : `Assinar ${plan.name}`}
+              {busyPlan === plan.id ? "Abrindo checkout..." : plan.cta}
             </button>
           </div>
         ))}
@@ -161,7 +170,8 @@ export default function BillingPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate">Conta conectada</p>
             <h3 className="mt-2 text-xl font-semibold">{session?.user?.email ?? "Entre com Google para assinar"}</h3>
             <p className="mt-2 text-sm leading-6 text-slate">
-              Plano local atual: {workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "pro" ? "Pro" : "Teste"}.
+              Plano atual: {workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "business" ? "Business" : workspace.plan === "pro" ? "Pro" : "Trial"}.
+              {" "}Uso: {workspace.creditsUsed ?? 0}/{workspace.creditsLimit ?? "custom"} creditos neste mes.
             </p>
           </div>
           <button className="button-secondary" type="button" disabled={busyPlan !== null || isDesktopMode} onClick={() => void openPortal()}>

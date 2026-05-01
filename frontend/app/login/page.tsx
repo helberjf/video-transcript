@@ -19,6 +19,7 @@ import { formatDate } from "@/lib/utils";
 const PLAN_OPTIONS: { value: WorkspacePlan; label: string; description: string }[] = [
   { value: "trial", label: "Teste comercial", description: "Validar o fluxo com poucos documentos." },
   { value: "pro", label: "Profissional", description: "Uso recorrente por cliente ou equipe." },
+  { value: "business", label: "Business", description: "Mais creditos para operacoes com volume." },
   { value: "enterprise", label: "Enterprise", description: "Operacao com volume, auditoria e SSO futuro." },
 ];
 

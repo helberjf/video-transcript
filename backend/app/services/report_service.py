@@ -13,6 +13,7 @@ from app.repositories.report_template_repository import ReportTemplateRepository
 from app.repositories.upload_repository import UploadRepository
 from app.schemas.report import GenerateReportRequest, ReportExportExtension
 from app.services.settings_service import get_effective_provider_settings
+from app.services.usage_service import consume_credits
 
 
 @dataclass(frozen=True)
@@ -299,6 +300,13 @@ def generate_report(db: Session, payload: GenerateReportRequest, workspace_id: s
         raise ValueError("A transcrição ainda não está disponível")
 
     template = template_repository.get_for_workspace(payload.template_id, workspace_id) if payload.template_id else None
+    consume_credits(
+        db,
+        workspace_id,
+        "report_generation",
+        1,
+        metadata={"upload_id": payload.upload_id, "template_id": payload.template_id},
+    )
     output_format = template.output_format if template else ReportFormat.MARKDOWN
     prompt = build_report_prompt(
         transcription=upload.transcription_text,

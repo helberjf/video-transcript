@@ -20,6 +20,7 @@ from app.services.upload_service import (
     list_uploads,
     read_dashboard_stats,
 )
+from app.services.usage_service import consume_credits
 from app.workers.processing_worker import process_upload
 
 
@@ -94,6 +95,14 @@ def process_upload_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> ProcessingResponse:
     upload = call_with_workspace(get_upload_or_404, db, upload_id, workspace_id=workspace_id)
+    consume_credits(
+        db,
+        workspace_id,
+        "media_processing_start",
+        1,
+        idempotency_key=f"process:{upload.id}:start",
+        metadata={"upload_id": upload.id},
+    )
     background_tasks.add_task(
         process_upload,
         upload.id,

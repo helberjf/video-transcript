@@ -16,7 +16,8 @@
   },
   "devDependencies": {
     "electron": "^37.2.6",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "next": "15.5.15"
   },
   "build": {
     "appId": "br.com.media-transcript-studio",
@@ -36,7 +37,17 @@
       },
       {
         "from": "electron/resources/frontend",
-        "to": "frontend"
+        "to": "frontend",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "electron/resources/frontend/node_modules",
+        "to": "frontend/node_modules",
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "electron/resources/ffmpeg",

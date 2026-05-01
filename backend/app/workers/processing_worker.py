@@ -7,6 +7,7 @@ from app.models.enums import FileType, ProcessingStatus, TranscriptionEngine
 from app.repositories.upload_repository import UploadRepository
 from app.services.settings_service import get_effective_provider_settings
 from app.services.transcription_service import transcribe_audio
+from app.services.usage_service import audio_video_credits, consume_credits
 from app.utils.ffmpeg import extract_audio_to_mp3, normalize_audio, probe_duration_seconds
 from app.utils.files import safe_unlink
 
@@ -51,6 +52,15 @@ def process_upload(
 
         upload.converted_path = str(converted_path)
         upload.duration_seconds = probe_duration_seconds(converted_path)
+        total_credits = audio_video_credits(upload.duration_seconds)
+        consume_credits(
+            db,
+            upload.workspace_id,
+            "media_processing_duration",
+            max(0, total_credits - 1),
+            idempotency_key=f"process:{upload.id}:duration",
+            metadata={"upload_id": upload.id, "duration_seconds": upload.duration_seconds},
+        )
         upload.status = ProcessingStatus.TRANSCRIBING
         repository.save(upload)
 

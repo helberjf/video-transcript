@@ -65,6 +65,10 @@ temp/
 # Logs
 *.log
 logs/
+test-results/
+frontend/test-results/
+playwright-report/
+frontend/playwright-report/
 
 # OS
 .DS_Store

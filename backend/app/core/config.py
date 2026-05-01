@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     cors_origin_regex: str | None = None
 
     database_url: str = f"sqlite:///{(PROJECT_DIR / 'data' / 'app.db').as_posix()}"
+    backend_auth_secret: str | None = None
+    backend_auth_required: bool = False
     storage_dir: Path = PROJECT_DIR / "storage"
     uploads_dir: Path = PROJECT_DIR / "storage" / "uploads"
     processed_dir: Path = PROJECT_DIR / "storage" / "processed"
@@ -67,13 +69,16 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
-    for path in [
+    paths = [
         settings.storage_dir,
         settings.uploads_dir,
         settings.processed_dir,
         settings.exports_dir,
         settings.temp_dir,
-        Path(settings.database_url.replace("sqlite:///", "")).parent,
-    ]:
+    ]
+    if settings.database_url.startswith("sqlite:///"):
+        paths.append(Path(settings.database_url.replace("sqlite:///", "")).parent)
+
+    for path in paths:
         path.mkdir(parents=True, exist_ok=True)
     return settings

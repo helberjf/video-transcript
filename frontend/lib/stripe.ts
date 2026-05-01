@@ -1,6 +1,8 @@
 import Stripe from "stripe";
 
-export type BillingPlan = "pro" | "enterprise";
+import type { WorkspacePlan } from "@/lib/billing-plans";
+
+export type BillingPlan = "pro" | "business";
 
 let stripeClient: Stripe | null = null;
 
@@ -24,10 +26,23 @@ export function getAppUrl(request: Request) {
 }
 
 export function getStripePriceId(plan: BillingPlan) {
-  const priceId = plan === "enterprise" ? process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY : process.env.STRIPE_PRICE_PRO_MONTHLY;
+  const priceId = plan === "business" ? process.env.STRIPE_PRICE_BUSINESS_MONTHLY : process.env.STRIPE_PRICE_PRO_MONTHLY;
   if (!priceId) {
     throw new Error(`Preco Stripe nao configurado para o plano ${plan}.`);
   }
 
   return priceId;
+}
+
+export function getPlanByStripePriceId(priceId: string | null | undefined): WorkspacePlan | null {
+  if (!priceId) {
+    return null;
+  }
+  if (priceId === process.env.STRIPE_PRICE_PRO_MONTHLY) {
+    return "pro";
+  }
+  if (priceId === process.env.STRIPE_PRICE_BUSINESS_MONTHLY) {
+    return "business";
+  }
+  return null;
 }

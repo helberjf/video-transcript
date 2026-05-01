@@ -19,7 +19,7 @@ export default function BillingSuccessPage() {
     processedRef.current = true;
 
     const params = new URLSearchParams(window.location.search);
-    const selectedPlan = params.get("plan") === "enterprise" ? "enterprise" : "pro";
+    const selectedPlan = params.get("plan") === "business" ? "business" : "pro";
     setPlan(selectedPlan);
 
     const saved = saveWorkspace({
@@ -46,7 +46,7 @@ export default function BillingSuccessPage() {
 
       <div className="panel p-6">
         <p className="text-sm leading-6 text-slate">
-          Plano ativo: <span className="font-semibold text-ink">{plan === "enterprise" ? "Enterprise" : "Pro"}</span>.
+          Plano ativo: <span className="font-semibold text-ink">{plan === "business" ? "Business" : "Pro"}</span>.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link className="button-primary" href="/">

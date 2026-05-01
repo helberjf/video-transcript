@@ -24,13 +24,55 @@ import type {
 import { getWorkspaceRequestHeader } from "@/lib/workspace-store";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api";
+const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
+
+let cachedBackendToken: { token: string; expiresAt: number; workspaceId: string } | null = null;
+
+async function getApiAuthHeaders(): Promise<Record<string, string>> {
+  const workspaceId = getWorkspaceRequestHeader();
+  const fallbackHeaders = { "X-Workspace-Id": workspaceId };
+
+  if (isDesktopMode) {
+    return fallbackHeaders;
+  }
+
+  if (cachedBackendToken && cachedBackendToken.expiresAt > Date.now() + 30_000) {
+    return {
+      "X-Workspace-Id": cachedBackendToken.workspaceId,
+      Authorization: `Bearer ${cachedBackendToken.token}`,
+    };
+  }
+
+  try {
+    const response = await fetch("/api/backend-token", { cache: "no-store" });
+    if (!response.ok) {
+      return fallbackHeaders;
+    }
+    const payload = (await response.json()) as { token?: string; workspaceId?: string };
+    if (!payload.token || !payload.workspaceId) {
+      return fallbackHeaders;
+    }
+    cachedBackendToken = {
+      token: payload.token,
+      workspaceId: payload.workspaceId,
+      expiresAt: Date.now() + 4 * 60 * 1000,
+    };
+    return {
+      "X-Workspace-Id": payload.workspaceId,
+      Authorization: `Bearer ${payload.token}`,
+    };
+  } catch {
+    return fallbackHeaders;
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const authHeaders = await getApiAuthHeaders();
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      "X-Workspace-Id": getWorkspaceRequestHeader(),
+      ...authHeaders,
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
@@ -68,30 +110,34 @@ function parseFilenameFromDisposition(headerValue: string | null): string | null
 
 export function uploadFile(file: File, onProgress: (value: number) => void): Promise<UploadCreateResponse> {
   return new Promise((resolve, reject) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${API_BASE}/uploads`);
-    xhr.setRequestHeader("X-Workspace-Id", getWorkspaceRequestHeader());
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        onProgress(Math.round((event.loaded / event.total) * 100));
-      }
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText) as UploadCreateResponse);
-        return;
-      }
-      try {
-        const data = JSON.parse(xhr.responseText) as { detail?: string };
-        reject(new Error(data.detail ?? "Falha no upload"));
-      } catch {
-        reject(new Error("Falha no upload"));
-      }
-    };
-    xhr.onerror = () => reject(new Error("Erro de rede durante o upload"));
-    xhr.send(formData);
+    void getApiAuthHeaders()
+      .then((authHeaders) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${API_BASE}/uploads`);
+        Object.entries(authHeaders).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            onProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(JSON.parse(xhr.responseText) as UploadCreateResponse);
+            return;
+          }
+          try {
+            const data = JSON.parse(xhr.responseText) as { detail?: string };
+            reject(new Error(data.detail ?? "Falha no upload"));
+          } catch {
+            reject(new Error("Falha no upload"));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Erro de rede durante o upload"));
+        xhr.send(formData);
+      })
+      .catch(() => reject(new Error("Falha ao preparar autenticacao do upload")));
   });
 }
 
@@ -168,7 +214,7 @@ export async function createTemplateFromReference(
 
   const response = await fetch(`${API_BASE}/report-templates/analyze-reference`, {
     method: "POST",
-    headers: { "X-Workspace-Id": getWorkspaceRequestHeader() },
+    headers: await getApiAuthHeaders(),
     body: formData,
     cache: "no-store",
   });
@@ -199,7 +245,7 @@ export async function analyzeTemplateReference(
 
   const response = await fetch(`${API_BASE}/report-templates/analyze-reference-preview`, {
     method: "POST",
-    headers: { "X-Workspace-Id": getWorkspaceRequestHeader() },
+    headers: await getApiAuthHeaders(),
     body: formData,
     cache: "no-store",
   });
@@ -218,7 +264,7 @@ export async function extractTemplateReferenceText(file: File): Promise<Template
 
   const response = await fetch(`${API_BASE}/report-templates/extract-reference-text`, {
     method: "POST",
-    headers: { "X-Workspace-Id": getWorkspaceRequestHeader() },
+    headers: await getApiAuthHeaders(),
     body: formData,
     cache: "no-store",
   });
@@ -283,9 +329,10 @@ export function detectFormFields(payload: FormDetectFieldsPayload) {
 }
 
 export async function exportForm(payload: FormExportPayload): Promise<{ blob: Blob; filename: string | null }> {
+  const authHeaders = await getApiAuthHeaders();
   const response = await fetch(`${API_BASE}/forms/export`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Workspace-Id": getWorkspaceRequestHeader() },
+    headers: { "Content-Type": "application/json", ...authHeaders },
     body: JSON.stringify(payload),
     cache: "no-store",
   });
@@ -313,7 +360,7 @@ export async function downloadReportExport(
   extension: ReportExportExtension,
 ): Promise<{ blob: Blob; filename: string | null }> {
   const response = await fetch(`${API_BASE}/reports/${reportId}/exports/${extension}`, {
-    headers: { "X-Workspace-Id": getWorkspaceRequestHeader() },
+    headers: await getApiAuthHeaders(),
     cache: "no-store",
   });
 
