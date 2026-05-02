@@ -4,8 +4,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
 
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptPath = if ($PSCommandPath) { $PSCommandPath } else { $MyInvocation.MyCommand.Path }
+$root = Split-Path -Parent (Resolve-Path $scriptPath)
 $packagedExeCandidates = @(
     (Join-Path $root "dist-electron\win-unpacked\FormReport Studio.exe"),
     (Join-Path $root "dist-electron\win-unpacked\Media Transcript Studio.exe")

@@ -208,6 +208,16 @@ function createLoadingWindow() {
     </html>
   `;
 
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+    log(`Falha ao carregar janela: ${errorCode} ${errorDescription} ${validatedURL}`);
+  });
+  mainWindow.webContents.on("did-finish-load", () => {
+    log(`Janela carregada: ${mainWindow?.webContents.getURL() || "sem URL"}`);
+  });
+  mainWindow.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    log(`Console renderer nivel ${level}: ${message} (${sourceId}:${line})`);
+  });
+
   loadDesktopShell({
     title: "Preparando aplicativo desktop",
     description: "Estamos subindo os servicos locais e carregando a interface do app.",
@@ -238,6 +248,14 @@ function startBackend(paths) {
     APP_HOST: "127.0.0.1",
     APP_PORT: String(BACKEND_PORT),
     APP_CONFIG_DIR: paths.configDir,
+    APP_ENV: "desktop",
+    BACKEND_AUTH_REQUIRED: "false",
+    CORS_ORIGINS: [
+      `http://127.0.0.1:${FRONTEND_PORT}`,
+      `http://localhost:${FRONTEND_PORT}`,
+      "http://127.0.0.1:3000",
+      "http://localhost:3000",
+    ].join(","),
     DATABASE_URL: toSqliteUrl(path.join(paths.dataDir, "app.db")),
     STORAGE_DIR: paths.storageDir,
     UPLOADS_DIR: paths.uploadsDir,
