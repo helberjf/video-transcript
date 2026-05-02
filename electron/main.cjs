@@ -179,6 +179,17 @@ function loadDesktopShell(options) {
   void mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(desktopShellHtml(options))}`);
 }
 
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.show();
+  mainWindow.focus();
+}
+
 function createLoadingWindow() {
   log("Criando janela de carregamento.");
   mainWindow = new BrowserWindow({
@@ -224,9 +235,7 @@ function createLoadingWindow() {
     status: "Criando diretorios locais...",
     activeStep: 0,
   });
-  mainWindow.once("ready-to-show", () => {
-    mainWindow?.show();
-  });
+  mainWindow.once("ready-to-show", showMainWindow);
 }
 
 function attachLogs(child, name, logsDir) {
@@ -417,6 +426,7 @@ async function bootApplication() {
     activeStep: 3,
   });
   await mainWindow?.loadURL(`http://127.0.0.1:${FRONTEND_PORT}`);
+  showMainWindow();
   if (!app.isPackaged && process.env.ELECTRON_OPEN_DEVTOOLS === "1") {
     mainWindow?.webContents.openDevTools({ mode: "detach" });
   }
@@ -457,6 +467,16 @@ function shutdownProcesses() {
   stopChild(backendProcess);
 }
 
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
+
+app.on("second-instance", () => {
+  showMainWindow();
+});
+
 app.on("before-quit", shutdownProcesses);
 app.on("window-all-closed", () => {
   app.quit();
@@ -470,6 +490,9 @@ app.on("activate", () => {
 });
 
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) {
+    return;
+  }
   log("Electron pronto.");
   void bootApplication().catch((error) => {
     showStartupError(error);
