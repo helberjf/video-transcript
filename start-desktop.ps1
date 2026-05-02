@@ -142,6 +142,53 @@ function Ensure-ElectronResources {
     }
 }
 
+function Stop-DesktopProcessConflicts {
+    $currentPid = $PID
+    $processNames = @(
+        "FormReport Studio.exe",
+        "Media Transcript Studio.exe",
+        "MediaTranscriptBackend.exe"
+    )
+
+    $conflicts = Get-CimInstance Win32_Process | Where-Object {
+        if ($_.ProcessId -eq $currentPid) {
+            return $false
+        }
+
+        if ($processNames -contains $_.Name) {
+            return $true
+        }
+
+        $commandLine = $_.CommandLine
+        if ([string]::IsNullOrWhiteSpace($commandLine)) {
+            return $false
+        }
+
+        return (
+            ($_.Name -eq "electron.exe" -or $_.Name -eq "node.exe") -and
+            ($commandLine -like "*$root*" -or $commandLine -like "*media-transcript-studio-desktop*")
+        )
+    }
+
+    if (-not $conflicts) {
+        return
+    }
+
+    Write-Host "Encerrando instancias antigas do desktop para liberar frontend local..." -ForegroundColor Yellow
+    foreach ($process in $conflicts) {
+        try {
+            Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+        }
+        catch {
+            Write-Host "Nao foi possivel encerrar $($process.Name) ($($process.ProcessId)): $($_.Exception.Message)" -ForegroundColor DarkYellow
+        }
+    }
+
+    Start-Sleep -Seconds 2
+}
+
+Stop-DesktopProcessConflicts
+
 if (-not $Dev -and (Test-PackagedAppCurrent)) {
     Write-Host "Abrindo a versao desktop empacotada..." -ForegroundColor Green
     Write-Host "(Para rodar a partir do codigo-fonte atual, use: start-desktop.bat dev)" -ForegroundColor DarkGray
