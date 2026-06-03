@@ -22,7 +22,7 @@ def _settings_env_files() -> tuple[Path, ...]:
 
 
 class Settings(BaseSettings):
-    app_name: str = "Local Media Transcript Studio"
+    app_name: str = "ModeloIA"
     app_env: str = "development"
     app_host: str = "127.0.0.1"
     app_port: int = 8000

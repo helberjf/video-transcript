@@ -1,5 +1,11 @@
 import type {
+  CookiesStatus,
   DashboardStats,
+  InstagramAnalyzeJobStatus,
+  InstagramAnalyzePayload,
+  InstagramLoginStatus,
+  InstagramPostReadPayload,
+  InstagramPostReadResponse,
   FormDetectFieldsPayload,
   FormDetectFieldsResponse,
   FormExportPayload,
@@ -384,4 +390,61 @@ export function updateSettings(payload: Record<string, unknown>) {
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+export function getCookiesStatus() {
+  return request<CookiesStatus>("/cookies");
+}
+
+export async function uploadCookiesFile(file: File): Promise<CookiesStatus> {
+  const authHeaders = await getApiAuthHeaders();
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API_BASE}/cookies`, {
+    method: "POST",
+    headers: authHeaders,
+    body: formData,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as unknown;
+    throw new Error(parseErrorMessage(data));
+  }
+
+  return (await response.json()) as CookiesStatus;
+}
+
+export function deleteCookies() {
+  return request<CookiesStatus>("/cookies", { method: "DELETE" });
+}
+
+export function startInstagramLogin() {
+  return request<InstagramLoginStatus>("/cookies/instagram-login", { method: "POST" });
+}
+
+export function getInstagramLoginStatus() {
+  return request<InstagramLoginStatus>("/cookies/instagram-login");
+}
+
+export function cancelInstagramLogin() {
+  return request<InstagramLoginStatus>("/cookies/instagram-login", { method: "DELETE" });
+}
+
+export function readInstagramPost(payload: InstagramPostReadPayload) {
+  return request<InstagramPostReadResponse>("/instagram/read", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function startInstagramPostAnalyze(payload: InstagramAnalyzePayload) {
+  return request<InstagramAnalyzeJobStatus>("/instagram/post/analyze", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getInstagramPostAnalyze(jobId: string) {
+  return request<InstagramAnalyzeJobStatus>(`/instagram/post/analyze/${jobId}`);
 }

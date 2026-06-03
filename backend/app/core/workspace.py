@@ -21,7 +21,7 @@ def normalize_workspace_id(value: str | None) -> str:
 
 def _backend_secret() -> str | None:
     settings = get_settings()
-    return settings.backend_auth_secret or ("formreport-dev-backend-secret" if settings.app_env == "development" else None)
+    return settings.backend_auth_secret or ("modeloia-dev-backend-secret" if settings.app_env == "development" else None)
 
 
 def _decode_workspace_from_authorization(authorization: str | None) -> str | None:

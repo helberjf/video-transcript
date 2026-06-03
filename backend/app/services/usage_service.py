@@ -33,7 +33,7 @@ def ensure_workspace(db: Session, workspace_id: str) -> Workspace:
         id=workspace_id,
         client_name="Cliente local",
         owner_name="Operador local",
-        owner_email="local@formreport.local",
+        owner_email="local@modeloia.local",
         segment="Operacoes documentais",
         plan="trial",
         billing_status="trialing",

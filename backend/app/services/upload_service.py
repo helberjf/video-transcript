@@ -60,19 +60,26 @@ def _parse_cookies_from_browser(value: str | None) -> tuple[str, ...] | None:
     return (browser, profile) if profile else (browser,)
 
 
-def _build_ydl_options(source: RemoteMediaSource, output_template: str) -> dict[str, Any]:
+def _resolve_cookies_file() -> str | None:
     settings = get_settings()
+    default_cookies_path = Path(settings.temp_dir) / "cookies.txt"
+    if default_cookies_path.exists():
+        return str(default_cookies_path)
+
+    for env_var in ("INSTAGRAM_COOKIES_FILE", "YTDLP_COOKIES_FILE"):
+        candidate = os.environ.get(env_var)
+        if candidate and Path(candidate).exists():
+            return candidate
+
+    return None
+
+
+def _build_ydl_options(source: RemoteMediaSource, output_template: str) -> dict[str, Any]:
+    cookies_file = _resolve_cookies_file()
     cookies_from_browser = (
         os.environ.get("INSTAGRAM_COOKIES_FROM_BROWSER")
         or os.environ.get("YTDLP_COOKIES_FROM_BROWSER")
     )
-    cookies_file = (
-        os.environ.get("INSTAGRAM_COOKIES_FILE")
-        or os.environ.get("YTDLP_COOKIES_FILE")
-    )
-    default_cookies_path = Path(settings.temp_dir) / "cookies.txt"
-    if not cookies_file and default_cookies_path.exists():
-        cookies_file = str(default_cookies_path)
 
     ydl_options: dict[str, Any] = {
         "quiet": True,
@@ -88,9 +95,9 @@ def _build_ydl_options(source: RemoteMediaSource, output_template: str) -> dict[
     else:
         ydl_options["format"] = "best[ext=mp4]/best"
 
-    if cookies_file and Path(cookies_file).exists():
+    if cookies_file:
         ydl_options["cookiefile"] = cookies_file
-    else:
+    elif cookies_from_browser:
         parsed_cookies = _parse_cookies_from_browser(cookies_from_browser)
         if parsed_cookies:
             ydl_options["cookiesfrombrowser"] = parsed_cookies
@@ -152,14 +159,38 @@ def _remote_download_error_message(source: RemoteMediaSource, error: Exception) 
     source_label = "YouTube" if source == "youtube" else "Instagram"
     raw_message = str(error).strip()
     compact_message = re.sub(r"\s+", " ", raw_message)
+    lower_message = compact_message.lower()
 
-    if "requested format is not available" in compact_message.lower():
+    if "requested format is not available" in lower_message:
         return f"{source_label} nao disponibilizou um formato compativel para download. Atualize o yt-dlp ou tente outro link."
 
-    if any(fragment in compact_message.lower() for fragment in ("sign in", "login", "cookies", "private video", "confirm your age")):
-        return f"{source_label} pediu login/cookies para acessar essa midia. Configure YTDLP_COOKIES_FILE ou tente um video publico."
+    browser_cookie_failures = (
+        "could not copy chrome cookie database",
+        "could not find firefox cookies database",
+        "failed to decrypt with dpapi",
+    )
+    if any(fragment in lower_message for fragment in browser_cookie_failures):
+        return (
+            f"O yt-dlp tentou ler cookies do navegador e falhou (Chrome/Edge bloqueiam por DPAPI no Windows). "
+            "Va em Configuracoes > Cookies do Instagram, faca upload do cookies.txt e tente novamente."
+        )
 
-    if "video unavailable" in compact_message.lower():
+    needs_login_fragments = (
+        "sign in",
+        "login required",
+        "rate-limit reached",
+        "cookies",
+        "private video",
+        "confirm your age",
+        "requested content is not available",
+    )
+    if any(fragment in lower_message for fragment in needs_login_fragments):
+        return (
+            f"{source_label} exige sessao logada para acessar essa midia. "
+            "Va em Configuracoes > Cookies do Instagram, faca upload do cookies.txt exportado do navegador e tente novamente."
+        )
+
+    if "video unavailable" in lower_message:
         return f"{source_label} informou que o video esta indisponivel para este link."
 
     if compact_message:
@@ -168,12 +199,22 @@ def _remote_download_error_message(source: RemoteMediaSource, error: Exception) 
     return f"Falha ao baixar a midia de {source_label}"
 
 
-def create_upload_from_remote_url(db: Session, source: RemoteMediaSource, url: str, workspace_id: str = "local-workspace") -> Upload:
-    settings = get_settings()
-    normalized_url = _validate_remote_media_url(source, url)
-    download_prefix = f"remote-{os.urandom(4).hex()}"
-    output_template = str(settings.uploads_dir / f"{download_prefix}.%(ext)s")
+def _is_ssl_certificate_error(error: Exception) -> bool:
+    lower_message = str(error).lower()
+    return (
+        "certificate_verify_failed" in lower_message
+        or "certificate verify failed" in lower_message
+        or "unable to get local issuer certificate" in lower_message
+    )
 
+
+def extract_remote_info_with_ssl_fallback(
+    source: RemoteMediaSource,
+    url: str,
+    ydl_options: dict[str, Any],
+    *,
+    download: bool,
+) -> dict[str, Any] | None:
     try:
         import yt_dlp
     except ImportError as exc:
@@ -182,10 +223,35 @@ def create_upload_from_remote_url(db: Session, source: RemoteMediaSource, url: s
             detail="yt-dlp nao esta instalado no backend",
         ) from exc
 
+    try:
+        with yt_dlp.YoutubeDL(ydl_options) as downloader:
+            return downloader.extract_info(url, download=download)
+    except Exception as exc:
+        if not _is_ssl_certificate_error(exc) or ydl_options.get("nocheckcertificate"):
+            raise
+
+        retry_options = {**ydl_options, "nocheckcertificate": True}
+        try:
+            with yt_dlp.YoutubeDL(retry_options) as downloader:
+                return downloader.extract_info(url, download=download)
+        except Exception as retry_exc:
+            raise retry_exc from exc
+
+
+def create_upload_from_remote_url(db: Session, source: RemoteMediaSource, url: str, workspace_id: str = "local-workspace") -> Upload:
+    settings = get_settings()
+    normalized_url = _validate_remote_media_url(source, url)
+    download_prefix = f"remote-{os.urandom(4).hex()}"
+    output_template = str(settings.uploads_dir / f"{download_prefix}.%(ext)s")
+
     info: dict[str, Any] | None = None
     try:
-        with yt_dlp.YoutubeDL(_build_ydl_options(source, output_template)) as downloader:
-            info = downloader.extract_info(normalized_url, download=True)
+        info = extract_remote_info_with_ssl_fallback(
+            source,
+            normalized_url,
+            _build_ydl_options(source, output_template),
+            download=True,
+        )
 
         downloaded_path = _find_downloaded_media_path(download_prefix)
         file_size = downloaded_path.stat().st_size

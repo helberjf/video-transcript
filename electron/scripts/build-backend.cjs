@@ -22,7 +22,7 @@ run(python, [
   "--clean",
   "--onedir",
   "--name",
-  "MediaTranscriptBackend",
+  "ModeloIABackend",
   "--distpath",
   resourcesDir,
   "--workpath",

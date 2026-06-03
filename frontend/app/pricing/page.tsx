@@ -7,7 +7,7 @@ export default function PricingPage() {
     <div className="mx-auto min-h-[calc(100vh-40px)] max-w-7xl py-4">
       <header className="flex items-center justify-between gap-4 py-3">
         <Link href="/" className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-ink">
-          FormReport AI
+          ModeloIA
         </Link>
         <Link className="button-primary px-4 py-2" href="/login">
           Entrar com Google

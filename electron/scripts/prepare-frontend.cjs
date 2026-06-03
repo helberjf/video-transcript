@@ -28,13 +28,13 @@ copyDir(standaloneDir, targetDir);
 
 const staticSource = path.join(frontendDir, ".next", "static");
 if (fs.existsSync(staticSource)) {
-  ensureDir(path.join(targetDir, "frontend", ".next"));
-  copyDir(staticSource, path.join(targetDir, "frontend", ".next", "static"));
+  ensureDir(path.join(targetDir, ".next"));
+  copyDir(staticSource, path.join(targetDir, ".next", "static"));
 }
 
 const publicDir = path.join(frontendDir, "public");
 if (fs.existsSync(publicDir)) {
-  copyDir(publicDir, path.join(targetDir, "frontend", "public"));
+  copyDir(publicDir, path.join(targetDir, "public"));
 }
 
 console.log(`Frontend desktop preparado em ${targetDir}`);

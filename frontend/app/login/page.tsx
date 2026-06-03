@@ -71,7 +71,7 @@ export default function LoginPage() {
       <div className="mx-auto grid min-h-[calc(100vh-40px)] max-w-6xl gap-6 py-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
         <section className="space-y-6">
           <Link href="/" className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-ink">
-            FormReport AI
+            ModeloIA
           </Link>
           <div className="space-y-4">
             <p className="inline-flex rounded-full border border-tide/25 bg-tide/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-aqua">
@@ -81,14 +81,19 @@ export default function LoginPage() {
               Entre com Google para criar seu workspace
             </h1>
             <p className="max-w-xl text-base leading-8 text-slate">
-              Auth.js usa o OAuth do Google sem mensalidade por usuario. Depois do login, cada cliente fica com historico, modelos e documentos separados.
+              Auth.js usa o OAuth do Google. Depois do login, cada proprietário fica com historico, modelos e documentos separados.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <button className="button-primary" type="button" onClick={() => void signIn("google", { callbackUrl })}>
               Entrar com Google
             </button>
-            <Link className="button-secondary" href="/billing">
+            <Link className="button-secondary" href="/register">
+              Cadastrar imóvel
+            </Link>
+          </div>
+          <div className="flex gap-4 text-sm">
+            <Link href="/billing" className="text-slate hover:underline">
               Ver planos
             </Link>
           </div>
@@ -98,7 +103,7 @@ export default function LoginPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sand">Fluxo comercial</p>
           <div className="mt-5 grid gap-4">
             {[
-              ["Login", "Google identifica o responsavel e cria o workspace do cliente."],
+              ["Login Google", "Autenticação segura sem senha. O proprietário identifica-se com sua conta Google."],
               ["Formulario", "A IA detecta campos alteraveis em imagens, PDFs e documentos."],
               ["Documento final", "O usuario revisa respostas e exporta Word/PDF."],
             ].map(([title, description]) => (

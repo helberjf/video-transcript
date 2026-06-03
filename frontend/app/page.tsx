@@ -661,7 +661,7 @@ function PublicLanding({ onGoogleLogin }: { onGoogleLogin: () => void }) {
     <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-7xl flex-col">
       <header className="flex items-center justify-between gap-4 py-3">
         <Link href="/" className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-ink">
-          FormReport AI
+          ModeloIA
         </Link>
         <div className="flex items-center gap-2">
           <Link className="button-secondary px-4 py-2" href="/pricing">
@@ -680,7 +680,7 @@ function PublicLanding({ onGoogleLogin }: { onGoogleLogin: () => void }) {
           </div>
           <div className="space-y-4">
             <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight tracking-tight text-ink sm:text-5xl lg:text-6xl">
-              FormReport AI
+              ModeloIA
             </h1>
             <p className="max-w-2xl text-lg leading-8 text-slate">
               Suba um arquivo, deixe a IA encontrar o que e preenchivel, revise os campos e gere o documento ou relatorio final para exportar.

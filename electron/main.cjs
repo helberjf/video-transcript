@@ -14,7 +14,7 @@ let backendProcess = null;
 let frontendProcess = null;
 let isShuttingDown = false;
 
-const bootstrapLogPath = path.join(os.tmpdir(), "formreport-studio-electron.log");
+const bootstrapLogPath = path.join(os.tmpdir(), "modeloia-electron.log");
 
 function log(message) {
   const line = `[${new Date().toISOString()}] ${message}\n`;
@@ -152,8 +152,8 @@ function desktopShellHtml({ title, description, status, activeStep = 0, failed =
       <body>
         <div class="shell">
           <aside>
-            <p class="eyebrow">Local AI Desk</p>
-            <h1>FormReport Studio</h1>
+            <p class="eyebrow">ModeloIA</p>
+            <h1>ModeloIA</h1>
             <p class="desktop-note">Aplicativo desktop para transformar imagem, documento, audio ou video em formulario e relatorio com IA.</p>
           </aside>
           <main>
@@ -197,7 +197,7 @@ function createLoadingWindow() {
     height: 920,
     minWidth: 1120,
     minHeight: 720,
-    title: "FormReport Studio",
+    title: "ModeloIA",
     backgroundColor: "#111412",
     autoHideMenuBar: true,
     show: false,
@@ -211,7 +211,7 @@ function createLoadingWindow() {
     <html lang="pt-BR">
       <body style="margin:0;font-family:Segoe UI,system-ui,sans-serif;background:#f5f0e8;color:#1f2937;display:flex;align-items:center;justify-content:center;">
         <div style="max-width:560px;padding:32px 36px;border:1px solid rgba(15,23,42,0.08);border-radius:24px;background:white;box-shadow:0 20px 60px rgba(15,23,42,0.08);">
-          <p style="margin:0 0 10px;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">Media Transcript Studio</p>
+          <p style="margin:0 0 10px;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">ModeloIA</p>
           <h1 style="margin:0 0 12px;font-size:30px;line-height:1.15;">Iniciando aplicativo desktop</h1>
           <p style="margin:0;font-size:15px;line-height:1.7;color:#475569;">Estamos iniciando o backend FastAPI, o frontend Next.js e preparando a área local do aplicativo em seu perfil do Windows.</p>
         </div>
@@ -276,8 +276,8 @@ function startBackend(paths) {
   };
 
   if (app.isPackaged) {
-    const backendDir = resourcePath("backend", "MediaTranscriptBackend");
-    const backendExe = path.join(backendDir, "MediaTranscriptBackend.exe");
+    const backendDir = resourcePath("backend", "ModeloIABackend");
+    const backendExe = path.join(backendDir, "ModeloIABackend.exe");
     if (!fs.existsSync(backendExe)) {
       throw new Error(`Executável do backend não encontrado em ${backendExe}`);
     }
@@ -312,8 +312,8 @@ function startFrontend(paths) {
     NEXT_PUBLIC_API_BASE_URL: `http://127.0.0.1:${BACKEND_PORT}/api`,
     NEXT_PUBLIC_DESKTOP_MODE: "1",
     NEXTAUTH_URL: `http://127.0.0.1:${FRONTEND_PORT}`,
-    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || "formreport-desktop-local-secret",
-    AUTH_SECRET: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "formreport-desktop-local-secret",
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || "modeloia-desktop-local-secret",
+    AUTH_SECRET: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "modeloia-desktop-local-secret",
   };
 
   if (app.isPackaged) {

@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 function getBackendAuthSecret() {
   const secret =
     process.env.BACKEND_AUTH_SECRET ??
-    (process.env.NODE_ENV === "development" ? "formreport-dev-backend-secret" : undefined);
+    (process.env.NODE_ENV === "development" ? "modeloia-dev-backend-secret" : undefined);
 
   if (!secret) {
     throw new Error("BACKEND_AUTH_SECRET nao configurado.");

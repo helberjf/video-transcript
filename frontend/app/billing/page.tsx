@@ -111,7 +111,7 @@ export default function BillingPage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Assinatura"
-        title="Planos para vender o FormReport"
+        title="Planos para vender o ModeloIA"
         description="Use Auth.js com Google para entrada gratuita por cliente e Stripe Checkout para cobrar assinatura no webapp."
       />
 

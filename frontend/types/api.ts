@@ -47,6 +47,101 @@ export interface RemoteImportPayload {
   url: string;
 }
 
+export interface CookiesStatus {
+  configured: boolean;
+  updated_at: string | null;
+  size_bytes: number;
+  total_lines: number;
+  has_instagram: boolean;
+  has_youtube: boolean;
+}
+
+export type InstagramLoginState =
+  | "idle"
+  | "launching"
+  | "waiting_login"
+  | "extracting"
+  | "completed"
+  | "error"
+  | "canceled";
+
+export interface InstagramLoginStatus {
+  state: InstagramLoginState;
+  message: string | null;
+  cookies: CookiesStatus | null;
+}
+
+export interface InstagramPostReadPayload {
+  url: string;
+}
+
+export interface InstagramSlide {
+  index: number;
+  display_id: string | null;
+  media_kind: string;
+  thumbnail_url: string | null;
+  direct_url: string | null;
+  duration_seconds: number | null;
+}
+
+export interface InstagramPostInfo {
+  url: string;
+  canonical_url: string;
+  source_type: string;
+  shortcode: string | null;
+  title: string | null;
+  caption: string | null;
+  author: string | null;
+  author_id: string | null;
+  media_kind: string;
+  duration_seconds: number | null;
+  view_count: number | null;
+  like_count: number | null;
+  comment_count: number | null;
+  upload_date: string | null;
+  thumbnail_url: string | null;
+  hashtags: string[];
+  mentions: string[];
+  raw_summary: string;
+  slides: InstagramSlide[];
+}
+
+export interface InstagramPostReadResponse {
+  post: InstagramPostInfo;
+  suggestions: string[];
+  confirmation_question: string;
+  prompt_seed: string;
+  used_cookies: boolean;
+  inspected_at: string;
+}
+
+export interface InstagramAnalyzePayload {
+  url: string;
+}
+
+export type InstagramAnalyzeJobState = "queued" | "running" | "done" | "failed";
+
+export interface InstagramAnalyzeSlideResult {
+  index: number;
+  display_id: string | null;
+  media_kind: string;
+  ocr_text: string | null;
+  provider: string | null;
+  error: string | null;
+}
+
+export interface InstagramAnalyzeJobStatus {
+  job_id: string;
+  status: InstagramAnalyzeJobState;
+  progress: number;
+  current_slide: number;
+  total_slides: number;
+  error: string | null;
+  slides: InstagramAnalyzeSlideResult[];
+  started_at: string | null;
+  completed_at: string | null;
+}
+
 export interface DashboardStats {
   total_uploads: number;
   total_reports: number;

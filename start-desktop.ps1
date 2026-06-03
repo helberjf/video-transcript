@@ -9,6 +9,7 @@ Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
 $scriptPath = if ($PSCommandPath) { $PSCommandPath } else { $MyInvocation.MyCommand.Path }
 $root = Split-Path -Parent (Resolve-Path $scriptPath)
 $packagedExeCandidates = @(
+    (Join-Path $root "dist-electron\win-unpacked\ModeloIA.exe"),
     (Join-Path $root "dist-electron\win-unpacked\FormReport Studio.exe"),
     (Join-Path $root "dist-electron\win-unpacked\Media Transcript Studio.exe")
 )
@@ -145,6 +146,8 @@ function Ensure-ElectronResources {
 function Stop-DesktopProcessConflicts {
     $currentPid = $PID
     $processNames = @(
+        "ModeloIA.exe",
+        "ModeloIABackend.exe",
         "FormReport Studio.exe",
         "Media Transcript Studio.exe",
         "MediaTranscriptBackend.exe"
@@ -166,7 +169,7 @@ function Stop-DesktopProcessConflicts {
 
         return (
             ($_.Name -eq "electron.exe" -or $_.Name -eq "node.exe") -and
-            ($commandLine -like "*$root*" -or $commandLine -like "*media-transcript-studio-desktop*")
+            ($commandLine -like "*$root*" -or $commandLine -like "*modeloia-desktop*" -or $commandLine -like "*media-transcript-studio-desktop*")
         )
     }
 

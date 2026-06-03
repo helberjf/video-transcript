@@ -115,6 +115,9 @@ if (-not (Test-Path (Join-Path $root "frontend\.env.local")) -and (Test-Path (Jo
 Write-Host "Instalando dependências do backend..." -ForegroundColor Cyan
 & $venvPython -m pip install --no-build-isolation -r (Join-Path $root "backend\requirements.txt")
 
+Write-Host "Baixando Chromium para o login do Instagram (Playwright)..." -ForegroundColor Cyan
+& $venvPython -m playwright install chromium
+
 Write-Host "Instalando dependências do frontend..." -ForegroundColor Cyan
 Push-Location (Join-Path $root "frontend")
 try {

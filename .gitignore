@@ -1,3 +1,7 @@
+# Large installer binaries
+*.exe
+*.blockmap
+
 # Python
 __pycache__/
 *.py[cod]

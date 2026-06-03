@@ -13,6 +13,8 @@ const navigation = [
   { href: "/history", label: "Historico", description: "Processamentos" },
   { href: "/templates", label: "Modelos", description: "Documentos base" },
   { href: "/forms", label: "Formularios", description: "Preenchimento" },
+  { href: "/instagram", label: "Instagram", description: "Post para prompt" },
+  { href: "/tutorial", label: "Tutorial", description: "Chaves de API" },
   { href: "/settings", label: "Ajustes", description: "IA e exportacao" },
   { href: "/pricing", label: "Precos", description: "Creditos" },
   { href: "/billing", label: "Plano", description: "Stripe" },
@@ -54,9 +56,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <aside className="min-w-0 overflow-hidden border-b border-white/10 bg-midnight/95 px-4 py-4 backdrop-blur-xl lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r lg:px-5 lg:py-6">
           <div className="flex items-center justify-between gap-4 lg:block">
             <Link href="/" className="block rounded-xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-sand/40">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sand">FormReport AI</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sand">ModeloIA</p>
               <h1 className="mt-2 font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-ink">
-                FormReport Studio
+                ModeloIA
               </h1>
               <p className="mt-1 text-xs text-slate">Imagem, documento e video para formulario ou relatorio</p>
             </Link>

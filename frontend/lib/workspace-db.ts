@@ -66,7 +66,7 @@ export async function serializeWorkspace(workspace: Workspace): Promise<Workspac
 }
 
 export async function ensureWorkspaceForUser(user: Pick<User, "id" | "email" | "name">): Promise<Workspace> {
-  const email = user.email || `${user.id}@formreport.local`;
+  const email = user.email || `${user.id}@modeloia.local`;
   const workspaceId = normalizeWorkspaceSlug(email);
   const ownerName = user.name || email;
 

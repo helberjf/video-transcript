@@ -1,4 +1,4 @@
-# Media Transcript Studio
+# ModeloIA
 
 Aplicação local, dividida em frontend e backend, para upload de áudio/vídeo, conversão para MP3, transcrição com fallback OpenAI → Gemini → Whisper e geração de relatórios com modelos reutilizáveis.
 
@@ -271,7 +271,7 @@ Ou com duplo clique:
 start-desktop.bat
 ```
 
-O iniciador usa primeiro a build pronta em `dist-electron/win-unpacked/Media Transcript Studio.exe`. Se ela ainda nao existir, ele cai para `npm run desktop:dev`.
+O iniciador usa primeiro a build pronta em `dist-electron/win-unpacked/ModeloIA.exe`. Se ela ainda nao existir, ele cai para `npm run desktop:dev`.
 
 Se quiser registrar a abertura automatica todos os dias no Agendador de Tarefas do Windows:
 
@@ -404,7 +404,9 @@ npm run desktop:build
 Artefatos gerados:
 
 - app desembrulhado: `dist-electron/win-unpacked/`
-- instalador Windows: `dist-electron/Media Transcript Studio Setup 1.0.0.exe`
+- instalador Windows: `dist-electron/ModeloIA Setup 1.0.0.exe`
+- copia para instalar pela raiz: `Instalar ModeloIA.exe`
+- desinstalador pela raiz: `uninstall-modeloia.bat`
 
 ### Como testar o app desktop sem instalador
 
@@ -415,7 +417,7 @@ npx electron-builder --dir
 Depois abra:
 
 ```powershell
-dist-electron\win-unpacked\Media Transcript Studio.exe
+dist-electron\win-unpacked\ModeloIA.exe
 ```
 
 ### Persistência no Windows

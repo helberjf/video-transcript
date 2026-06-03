@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -50,6 +51,17 @@ const RECORDING_MIME_TYPES = [
 
 function getRemoteSourceLabel(source: RemoteMediaSource): string {
   return source === "youtube" ? "YouTube" : "Instagram";
+}
+
+function isLoginRequiredError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("sessao logada") ||
+    lower.includes("cookies") ||
+    lower.includes("login") ||
+    lower.includes("rate-limit") ||
+    lower.includes("rate limit")
+  );
 }
 
 function getSupportedRecordingMimeType(): string | undefined {
@@ -499,7 +511,19 @@ export default function UploadPage() {
               )
             ) : null}
 
-            {error ? <p className="rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{error}</p> : null}
+            {error ? (
+              <div className="rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">
+                <p>{error}</p>
+                {remoteSource && isLoginRequiredError(error) ? (
+                  <Link
+                    href="/settings#cookies"
+                    className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-sand underline-offset-4 hover:underline"
+                  >
+                    Configurar cookies do {getRemoteSourceLabel(remoteSource)}
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate">
               Use apenas conteudo que voce tenha permissao para baixar e processar.

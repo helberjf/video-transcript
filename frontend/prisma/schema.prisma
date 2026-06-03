@@ -4,8 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -14,6 +12,7 @@ model User {
   email         String?   @unique
   emailVerified DateTime? @map("email_verified")
   image         String?
+  password      String?
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -23,6 +22,17 @@ model User {
   memberships   WorkspaceMember[]
 
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@map("password_reset_tokens")
 }
 
 model Account {
@@ -72,6 +82,7 @@ model Workspace {
   clientName            String   @map("client_name")
   ownerName             String   @map("owner_name")
   ownerEmail            String   @map("owner_email")
+  cnpj                  String?
   segment               String
   plan                  String   @default("trial")
   billingStatus         String   @default("trialing") @map("billing_status")

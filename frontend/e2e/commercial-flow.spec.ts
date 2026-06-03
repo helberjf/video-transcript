@@ -41,7 +41,7 @@ test.beforeEach(async ({ page }) => {
 
 test("visitante ve landing e tabela publica de precos", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "FormReport AI" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ModeloIA" })).toBeVisible();
   await page.goto("/pricing");
   await expect(page.getByRole("heading", { name: /IA inclusa por creditos/ })).toBeVisible();
   await expect(page.getByText("R$49/mes")).toBeVisible();

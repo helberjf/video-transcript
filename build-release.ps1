@@ -5,7 +5,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $venvPython = Join-Path $root "venv\Scripts\python.exe"
 
 if (-not (Test-Path $venvPython)) {
-    throw "Ambiente virtual não encontrado. Execute .\install-windows.ps1 primeiro."
+    throw "Ambiente virtual nao encontrado. Execute .\install-windows.ps1 primeiro."
 }
 
 Write-Host "Executando testes do backend..." -ForegroundColor Cyan
@@ -17,13 +17,13 @@ finally {
     Pop-Location
 }
 
-Write-Host "Gerando build do frontend..." -ForegroundColor Cyan
-Push-Location (Join-Path $root "frontend")
+Write-Host "Gerando instalador desktop do ModeloIA..." -ForegroundColor Cyan
+Push-Location $root
 try {
-    npm run build
+    npm run desktop:build
 }
 finally {
     Pop-Location
 }
 
-Write-Host "Build e testes concluídos com sucesso." -ForegroundColor Green
+Write-Host "Build, testes e instalador concluidos com sucesso." -ForegroundColor Green

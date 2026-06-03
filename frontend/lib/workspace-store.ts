@@ -28,7 +28,7 @@ export const DEFAULT_WORKSPACE: WorkspaceProfile = {
   id: "local-workspace",
   clientName: "Cliente demo",
   ownerName: "Operador local",
-  ownerEmail: "demo@formreport.local",
+  ownerEmail: "demo@modeloia.local",
   segment: "Operacoes documentais",
   plan: "trial",
   billingStatus: "trialing",

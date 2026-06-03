@@ -5,12 +5,16 @@ const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
 const authSecret =
   process.env.NEXTAUTH_SECRET ??
   process.env.AUTH_SECRET ??
-  (process.env.NODE_ENV === "development" ? "formreport-dev-secret" : undefined);
+  (process.env.NODE_ENV === "development" ? "modeloia-dev-secret" : undefined);
 
 function isPublicPath(pathname: string): boolean {
   return (
     pathname === "/" ||
     pathname.startsWith("/login") ||
+    pathname.startsWith("/acesso") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
     pathname.startsWith("/pricing") ||
     pathname.startsWith("/billing") ||
     pathname.startsWith("/api/auth") ||
