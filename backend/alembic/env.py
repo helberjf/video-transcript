@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import get_settings
 from app.core.database import Base
-from app.models import GeneratedReport, ReportTemplate, SystemConfig, Upload, UsageEvent, Workspace
+from app.models import DocumentModel, GeneratedReport, ReportTemplate, SystemConfig, Upload, UsageEvent, Workspace
 
 config = context.config
 settings = get_settings()
@@ -15,7 +15,7 @@ if config.config_file_name is not None:
   fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
-_ = (GeneratedReport, ReportTemplate, SystemConfig, Upload, UsageEvent, Workspace)
+_ = (DocumentModel, GeneratedReport, ReportTemplate, SystemConfig, Upload, UsageEvent, Workspace)
 
 
 def run_migrations_offline() -> None:

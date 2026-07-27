@@ -8,9 +8,9 @@ import { SelectableWords, type SelectableWordToken } from "@/components/selectab
 import { StatusBadge } from "@/components/status-badge";
 import { usePollUpload } from "@/hooks/use-poll-upload";
 import { formatDate, formatDuration } from "@/lib/utils";
-import { appendWorkspaceActivity } from "@/lib/workspace-store";
-import { downloadReportExport, generateReport, getTemplates, updateReport } from "@/services/api";
-import type { ReportExportExtension, ReportRead, ReportTemplate } from "@/types/api";
+import { appendWorkspaceActivity, consumePendingReportContext } from "@/lib/workspace-store";
+import { downloadReportExport, generateReport, getDocumentModels, getTemplates, updateReport } from "@/services/api";
+import type { DocumentModelRead, ReportExportExtension, ReportRead, ReportTemplate } from "@/types/api";
 
 type ReadingModePayload = {
   title: string;
@@ -341,8 +341,12 @@ export default function UploadDetailPage() {
   const shouldGuideToModel = searchParams.get("next") === "model";
   const { upload, reports, setReports, loading, error } = usePollUpload(uploadId);
   const [templates, setTemplates] = useState<ReportTemplate[]>([]);
+  const [documentModels, setDocumentModels] = useState<DocumentModelRead[]>([]);
+  const [documentModelId, setDocumentModelId] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [customRequest, setCustomRequest] = useState("");
+  const [includeReportContext, setIncludeReportContext] = useState(false);
+  const [reportContext, setReportContext] = useState("");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [reportTitle, setReportTitle] = useState("Relatório gerado");
   const [submitting, setSubmitting] = useState(false);
@@ -360,6 +364,10 @@ export default function UploadDetailPage() {
   const [reviewedReportIds, setReviewedReportIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
+    const pendingReportContext = consumePendingReportContext();
+    setReportContext(pendingReportContext);
+    setIncludeReportContext(Boolean(pendingReportContext));
+
     void getTemplates()
       .then((items) => {
         setTemplates(items);
@@ -371,8 +379,20 @@ export default function UploadDetailPage() {
         }
       })
       .catch(() => undefined);
+    void getDocumentModels()
+      .then((items) => {
+        setDocumentModels(items);
+        if (!documentModelId && items.length === 1) {
+          setDocumentModelId(items[0].id);
+        }
+      })
+      .catch(() => undefined);
   }, []);
 
+  const selectedDocumentModel = useMemo(
+    () => documentModels.find((documentModel) => documentModel.id === documentModelId) ?? null,
+    [documentModelId, documentModels],
+  );
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === templateId) ?? null,
     [templateId, templates],
@@ -384,8 +404,10 @@ export default function UploadDetailPage() {
     try {
       const report = await generateReport({
         upload_id: uploadId,
+        document_model_id: documentModelId || null,
         template_id: templateId || null,
         custom_request: customRequest || null,
+        report_context: includeReportContext ? reportContext || null : null,
         additional_instructions: additionalInstructions || null,
         title: reportTitle,
       });
@@ -592,12 +614,36 @@ export default function UploadDetailPage() {
                 ) : null}
                 <div className="mt-5 space-y-4">
                   <input className="field" value={reportTitle} onChange={(event) => setReportTitle(event.target.value)} placeholder="Título do relatório" />
-                  <select className="field" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
-                    <option value="">Sem modelo</option>
-                    {templates.map((template) => (
-                      <option key={template.id} value={template.id}>{template.name}</option>
-                    ))}
-                  </select>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium">Modelo de documentos</span>
+                    <select className="field" value={documentModelId} onChange={(event) => setDocumentModelId(event.target.value)}>
+                      <option value="">Sem modelo de documentos</option>
+                      {documentModels.map((documentModel) => (
+                        <option key={documentModel.id} value={documentModel.id}>
+                          {documentModel.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedDocumentModel ? (
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-sm text-ink">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Modelo de documentos aplicado</p>
+                      <p className="mt-2 font-medium">{selectedDocumentModel.name}</p>
+                      <p className="mt-2 text-slate">{selectedDocumentModel.description}</p>
+                      <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-midnight/45 p-3 text-xs leading-6 text-ink">
+                        {selectedDocumentModel.default_context}
+                      </pre>
+                    </div>
+                  ) : null}
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium">Template de relatório</span>
+                    <select className="field" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+                      <option value="">Sem modelo</option>
+                      {templates.map((template) => (
+                        <option key={template.id} value={template.id}>{template.name}</option>
+                      ))}
+                    </select>
+                  </label>
 
                   {selectedTemplate ? (
                     <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-sm text-ink">
@@ -620,6 +666,35 @@ export default function UploadDetailPage() {
                   ) : null}
 
                   <textarea className="field min-h-28" value={customRequest} onChange={(event) => setCustomRequest(event.target.value)} placeholder="Ex.: mantenha o modelo, destaque riscos e próximos passos." />
+                  <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-ink">Contexto adicional da execução atual</p>
+                        <p className="mt-1 text-sm text-slate">Use este texto apenas nesta geração de relatório.</p>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-slate">
+                        <input
+                          type="checkbox"
+                          checked={includeReportContext}
+                          onChange={(event) => {
+                            setIncludeReportContext(event.target.checked);
+                            if (!event.target.checked) {
+                              setReportContext("");
+                            }
+                          }}
+                        />
+                        Ativar
+                      </label>
+                    </div>
+                    {includeReportContext ? (
+                      <textarea
+                        className="field mt-4 min-h-28"
+                        value={reportContext}
+                        onChange={(event) => setReportContext(event.target.value)}
+                        placeholder="Contexto temporário para esta geração específica"
+                      />
+                    ) : null}
+                  </div>
                   <textarea className="field min-h-24" value={additionalInstructions} onChange={(event) => setAdditionalInstructions(event.target.value)} placeholder="Instruções adicionais opcionais" />
                   <button className="button-primary w-full" type="button" disabled={submitting || !upload.transcription_text} onClick={() => void createReport()}>
                     {submitting ? "Gerando relatório..." : "Gerar relatório"}
@@ -743,4 +818,3 @@ export default function UploadDetailPage() {
     </div>
   );
 }
-

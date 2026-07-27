@@ -1,6 +1,9 @@
 import type {
   CookiesStatus,
   DashboardStats,
+  DocumentModelCreatePayload,
+  DocumentModelRead,
+  DocumentModelUpdatePayload,
   InstagramAnalyzeJobStatus,
   InstagramAnalyzePayload,
   InstagramLoginStatus,
@@ -16,6 +19,7 @@ import type {
   ReportExportRead,
   ReportRenamePayload,
   ReportRead,
+  GenerateReportPayload,
   RemoteImportPayload,
   ReportTemplate,
   SettingsRead,
@@ -195,6 +199,56 @@ export function getTemplates() {
   return request<ReportTemplate[]>("/report-templates");
 }
 
+export function getDocumentModels() {
+  return request<DocumentModelRead[]>("/document-models");
+}
+
+export function getDocumentModel(documentModelId: string) {
+  return request<DocumentModelRead>(`/document-models/${documentModelId}`);
+}
+
+export async function createDocumentModel(
+  file: File,
+  fields: DocumentModelCreatePayload,
+): Promise<DocumentModelRead> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("name", fields.name.trim());
+  formData.append("description", fields.description.trim());
+  formData.append("default_context", fields.default_context.trim());
+  if (fields.category?.trim()) {
+    formData.append("category", fields.category.trim());
+  }
+  if (fields.base_instructions?.trim()) {
+    formData.append("base_instructions", fields.base_instructions.trim());
+  }
+
+  const response = await fetch(`${API_BASE}/document-models`, {
+    method: "POST",
+    headers: await getApiAuthHeaders(),
+    body: formData,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as unknown;
+    throw new Error(parseErrorMessage(data));
+  }
+
+  return (await response.json()) as DocumentModelRead;
+}
+
+export function updateDocumentModel(documentModelId: string, payload: DocumentModelUpdatePayload) {
+  return request<DocumentModelRead>(`/document-models/${documentModelId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteDocumentModel(documentModelId: string) {
+  return request<{ success: boolean }>(`/document-models/${documentModelId}`, { method: "DELETE" });
+}
+
 export function createTemplate(payload: Record<string, unknown>) {
   return request<ReportTemplate>("/report-templates", {
     method: "POST",
@@ -306,7 +360,7 @@ export function getReportExports(reportId: string) {
   return request<ReportExportRead[]>(`/reports/${reportId}/exports`);
 }
 
-export function generateReport(payload: Record<string, unknown>) {
+export function generateReport(payload: GenerateReportPayload) {
   return request<ReportRead>("/reports/generate", {
     method: "POST",
     body: JSON.stringify(payload),

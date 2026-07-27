@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "@/components/section-header";
 import { useWorkspace } from "@/hooks/use-workspace";
@@ -24,6 +24,8 @@ const PLAN_OPTIONS: { value: WorkspacePlan; label: string; description: string }
 ];
 
 const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
+const DEMO_CLIENT_EMAIL = "cliente@modeloia.com";
+const DEMO_CLIENT_PASSWORD = "Cliente@2026";
 
 export default function LoginPage() {
   const { workspace, loaded, saveWorkspace, resetWorkspace } = useWorkspace();
@@ -32,6 +34,10 @@ export default function LoginPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [activity, setActivity] = useState<WorkspaceActivity[]>([]);
   const [callbackUrl, setCallbackUrl] = useState("/");
+  const [email, setEmail] = useState(DEMO_CLIENT_EMAIL);
+  const [password, setPassword] = useState(DEMO_CLIENT_PASSWORD);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginLoading, setLoginLoading] = useState(false);
 
   useEffect(() => {
     setForm(workspace);
@@ -66,6 +72,38 @@ export default function LoginPage() {
     setMessage("Workspace voltou para o cliente demo local.");
   };
 
+  const submitCredentials = async (
+    event?: FormEvent<HTMLFormElement>,
+    credentials = { email, password },
+  ) => {
+    event?.preventDefault();
+    setLoginError(null);
+    setLoginLoading(true);
+
+    const result = await signIn("credentials", {
+      email: credentials.email,
+      password: credentials.password,
+      redirect: false,
+      callbackUrl,
+    });
+
+    setLoginLoading(false);
+
+    if (result?.error) {
+      setLoginError("Email ou senha incorretos. Se o demo ainda nao existir, rode npm run prisma:seed na pasta frontend.");
+      return;
+    }
+
+    window.location.href = result?.url || callbackUrl;
+  };
+
+  const submitDemoCredentials = async () => {
+    const demoCredentials = { email: DEMO_CLIENT_EMAIL, password: DEMO_CLIENT_PASSWORD };
+    setEmail(demoCredentials.email);
+    setPassword(demoCredentials.password);
+    await submitCredentials(undefined, demoCredentials);
+  };
+
   if (!isDesktopMode && status !== "authenticated") {
     return (
       <div className="mx-auto grid min-h-[calc(100vh-40px)] max-w-6xl gap-6 py-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
@@ -75,37 +113,82 @@ export default function LoginPage() {
           </Link>
           <div className="space-y-4">
             <p className="inline-flex rounded-full border border-tide/25 bg-tide/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-aqua">
-              Acesso web
+              Acesso do cliente
             </p>
             <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight tracking-tight text-ink sm:text-5xl">
-              Entre com Google para criar seu workspace
+              Acesse o ModeloIA
             </h1>
             <p className="max-w-xl text-base leading-8 text-slate">
-              Auth.js usa o OAuth do Google. Depois do login, cada proprietário fica com historico, modelos e documentos separados.
+              Entre como cliente do app para usar uploads, modelos de IA, formularios e relatorios no workspace certo.
             </p>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button className="button-primary" type="button" onClick={() => void signIn("google", { callbackUrl })}>
-              Entrar com Google
-            </button>
-            <Link className="button-secondary" href="/register">
-              Cadastrar imóvel
-            </Link>
-          </div>
-          <div className="flex gap-4 text-sm">
-            <Link href="/billing" className="text-slate hover:underline">
-              Ver planos
-            </Link>
+          <form className="panel space-y-4 p-6" onSubmit={(event) => void submitCredentials(event)}>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-ink">Email</label>
+              <input
+                className="field"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder={DEMO_CLIENT_EMAIL}
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-ink">Senha</label>
+              <input
+                className="field"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Senha do cliente"
+              />
+            </div>
+
+            {loginError ? (
+              <p className="rounded-lg border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{loginError}</p>
+            ) : null}
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button className="button-primary" type="submit" disabled={loginLoading}>
+                {loginLoading ? "Entrando..." : "Entrar"}
+              </button>
+              <button className="button-secondary" type="button" onClick={() => void submitDemoCredentials()} disabled={loginLoading}>
+                Entrar como cliente demo
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-4 text-sm">
+              <button className="text-left text-slate hover:underline" type="button" onClick={() => void signIn("google", { callbackUrl })}>
+                Entrar com Google
+              </button>
+              <Link href="/forgot-password" className="text-aqua hover:underline">
+                Esqueci a senha
+              </Link>
+            </div>
+          </form>
+
+          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate">
+            <p className="font-semibold text-sand">Login de exemplo</p>
+            <p className="mt-2">
+              <span className="text-ink">Cliente:</span> {DEMO_CLIENT_EMAIL}
+            </p>
+            <p>
+              <span className="text-ink">Senha:</span> {DEMO_CLIENT_PASSWORD}
+            </p>
           </div>
         </section>
 
         <section className="panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sand">Fluxo comercial</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sand">Fluxo do app</p>
           <div className="mt-5 grid gap-4">
             {[
-              ["Login Google", "Autenticação segura sem senha. O proprietário identifica-se com sua conta Google."],
-              ["Formulario", "A IA detecta campos alteraveis em imagens, PDFs e documentos."],
-              ["Documento final", "O usuario revisa respostas e exporta Word/PDF."],
+              ["Upload e transcricao", "Envie video, audio ou documento para gerar conteudo estruturado."],
+              ["Modelos de IA", "Use modelos salvos para transformar transcricoes e formularios em respostas prontas."],
+              ["Relatorios e documentos", "Revise o resultado e exporte Word/PDF dentro do workspace do cliente."],
             ].map(([title, description]) => (
               <div key={title} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
                 <p className="font-semibold text-ink">{title}</p>

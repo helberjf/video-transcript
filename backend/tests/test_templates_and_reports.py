@@ -2,10 +2,12 @@ import pytest
 import zipfile
 from base64 import b64decode
 from io import BytesIO
+from docx import Document
 from starlette.datastructures import UploadFile
 
 from app.models.enums import FileType, ProcessingStatus, TranscriptionEngine
 from app.models.upload import Upload
+from app.services.document_model_service import create_document_model
 from app.schemas.form import FormDetectFieldsRequest
 from app.schemas.report import GenerateReportRequest, ReportExportExtension
 from app.schemas.report_template import ReportTemplateCreate, ReportTemplateUpdate
@@ -375,6 +377,87 @@ def test_generate_report_prompt_uses_template_example(tmp_path, monkeypatch) -> 
     assert "Modelo de referência" in captured["prompt"]
     assert "## Responsável" in captured["prompt"]
     assert "Não informado na transcrição" in captured["prompt"]
+
+    session.close()
+    engine.dispose()
+
+
+def test_generate_report_prompt_includes_document_model_context(tmp_path, monkeypatch) -> None:
+    session, engine = create_test_session(tmp_path)
+    export_dir = tmp_path / "exports"
+    storage_dir = tmp_path / "storage"
+    upload = Upload(
+        original_filename="audio.mp3",
+        stored_filename="audio.mp3",
+        file_type=FileType.AUDIO,
+        mime_type="audio/mpeg",
+        original_path=str(tmp_path / "audio.mp3"),
+        upload_size_bytes=10,
+        transcription_text="Conteúdo transcrito para gerar relatório.",
+        transcription_engine=TranscriptionEngine.WHISPER,
+        status=ProcessingStatus.COMPLETED,
+    )
+    session.add(upload)
+    session.commit()
+    session.refresh(upload)
+
+    monkeypatch.setattr(
+        report_service,
+        "get_effective_provider_settings",
+        lambda db: {
+            "openai_api_key": "sk-test",
+            "gemini_api_key": None,
+            "export_directory": str(export_dir),
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.document_model_service.get_settings",
+        lambda: type("Settings", (), {"storage_dir": storage_dir})(),
+    )
+
+    document = Document()
+    document.add_paragraph("Título do documento base")
+    document.add_paragraph("Seção principal")
+    buffer = BytesIO()
+    document.save(buffer)
+    buffer.seek(0)
+
+    document_model = create_document_model(
+        session,
+        UploadFile(file=buffer, filename="documento-base.docx"),
+        name="Modelo documental",
+        description="Modelo para relatórios",
+        category="relatorio",
+        default_context="Contexto padrão salvo",
+    )
+
+    captured = {}
+
+    def fake_generate_openai(prompt: str, api_key: str):
+        captured["prompt"] = prompt
+        return "# Relatório", TranscriptionEngine.OPENAI
+
+    monkeypatch.setattr(report_service, "_generate_openai", fake_generate_openai)
+
+    report = generate_report(
+        session,
+        GenerateReportRequest(
+            upload_id=upload.id,
+            template_id=None,
+            document_model_id=document_model.id,
+            custom_request="Gere um resumo executivo.",
+            report_context="Contexto temporário da entrega.",
+            additional_instructions="Instruções finais.",
+            title="Resumo com modelo documental",
+        ),
+    )
+
+    assert report.generator_engine == TranscriptionEngine.OPENAI
+    prompt = captured["prompt"]
+    assert prompt.index("Transcrição base:") < prompt.index("Modelo de documento - instruções base:")
+    assert prompt.index("Modelo de documento - instruções base:") < prompt.index("Modelo de documento - contexto padrão:")
+    assert prompt.index("Modelo de documento - contexto padrão:") < prompt.index("Modelo de documento - texto de referência:")
+    assert prompt.index("Modelo de documento - texto de referência:") < prompt.index("Contexto temporário da execução:")
 
     session.close()
     engine.dispose()

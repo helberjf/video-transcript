@@ -102,4 +102,4 @@ if ($LASTEXITCODE -ne 0) {
 
 $backendPort = [int](& $pythonPath -c "from app.core.config import get_settings; print(get_settings().app_port)")
 Stop-ExistingBackendIfNeeded -Port $backendPort
-& $pythonPath "run_backend.py" --reload
+& $pythonPath "run_backend.py"

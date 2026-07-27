@@ -1,16 +1,28 @@
+import inspect
+
+import httpx
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base
-from app.models import GeneratedReport, ReportTemplate, SystemConfig, Upload
+from app.models import DocumentModel, GeneratedReport, ReportTemplate, SystemConfig, Upload
 
 
 def _load_models() -> None:
-    _ = (GeneratedReport, ReportTemplate, SystemConfig, Upload)
+    _ = (DocumentModel, GeneratedReport, ReportTemplate, SystemConfig, Upload)
 
 
 def pytest_configure() -> None:
     _load_models()
+    if "app" in inspect.signature(httpx.Client.__init__).parameters:
+        return
+
+    original_init = httpx.Client.__init__
+
+    def compatible_init(self, *args, app=None, **kwargs):
+        return original_init(self, *args, **kwargs)
+
+    httpx.Client.__init__ = compatible_init
 
 
 def create_test_session(tmp_path):
