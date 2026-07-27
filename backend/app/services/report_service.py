@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.enums import ProcessingStatus, ReportFormat, TranscriptionEngine
+from app.repositories.document_model_repository import DocumentModelRepository
 from app.models.report import GeneratedReport
 from app.repositories.report_repository import ReportRepository
 from app.repositories.report_template_repository import ReportTemplateRepository
@@ -122,9 +123,13 @@ def _write_report_exports(export_dir: Path, report_id: str, title: str, output_f
 
 def build_report_prompt(
     transcription: str,
+    document_model_base_instructions: str | None,
+    document_model_default_context: str | None,
+    document_model_source_text: str | None,
     template_prompt: str | None,
     example_output: str | None,
     custom_request: str | None,
+    report_context: str | None,
     additional_instructions: str | None,
 ) -> str:
     sections = [
@@ -133,6 +138,16 @@ def build_report_prompt(
         "Se o modelo pedir um campo ausente, escreva 'Não informado na transcrição'.",
         f"Transcrição base:\n{transcription}",
     ]
+    if document_model_base_instructions:
+        sections.append(f"Modelo de documento - instruções base:\n{document_model_base_instructions}")
+    if document_model_default_context:
+        sections.append(f"Modelo de documento - contexto padrão:\n{document_model_default_context}")
+    if document_model_source_text:
+        sections.append(
+            "Modelo de documento - texto de referência:\n"
+            f"{document_model_source_text}\n\n"
+            "Use essa referência para manter a estrutura, a ordem e a intenção do documento-base."
+        )
     if template_prompt:
         sections.append(f"Objetivo do modelo:\n{template_prompt}")
     if example_output:
@@ -143,6 +158,8 @@ def build_report_prompt(
         )
     if custom_request:
         sections.append(f"Pedido do usuário:\n{custom_request}")
+    if report_context:
+        sections.append(f"Contexto temporário da execução:\n{report_context}")
     if additional_instructions:
         sections.append(f"Instruções adicionais:\n{additional_instructions}")
     sections.append("Entregue o relatório final pronto para uso, já preenchido com base na transcrição.")
@@ -292,6 +309,7 @@ def rename_report(db: Session, report_id: str, title: str, workspace_id: str | N
 def generate_report(db: Session, payload: GenerateReportRequest, workspace_id: str = "local-workspace") -> GeneratedReport:
     upload_repository = UploadRepository(db)
     template_repository = ReportTemplateRepository(db)
+    document_model_repository = DocumentModelRepository(db)
     report_repository = ReportRepository(db)
     upload = upload_repository.get_for_workspace(payload.upload_id, workspace_id)
     if not upload:
@@ -300,19 +318,35 @@ def generate_report(db: Session, payload: GenerateReportRequest, workspace_id: s
         raise ValueError("A transcrição ainda não está disponível")
 
     template = template_repository.get_for_workspace(payload.template_id, workspace_id) if payload.template_id else None
+    document_model = (
+        document_model_repository.get_for_workspace(payload.document_model_id, workspace_id)
+        if payload.document_model_id
+        else None
+    )
+    if payload.document_model_id and not document_model:
+        raise ValueError("Modelo de documento não encontrado")
+
     consume_credits(
         db,
         workspace_id,
         "report_generation",
         1,
-        metadata={"upload_id": payload.upload_id, "template_id": payload.template_id},
+        metadata={
+            "upload_id": payload.upload_id,
+            "template_id": payload.template_id,
+            "document_model_id": payload.document_model_id,
+        },
     )
     output_format = template.output_format if template else ReportFormat.MARKDOWN
     prompt = build_report_prompt(
         transcription=upload.transcription_text,
+        document_model_base_instructions=document_model.base_instructions if document_model else None,
+        document_model_default_context=document_model.default_context if document_model else None,
+        document_model_source_text=document_model.source_text if document_model else None,
         template_prompt=template.base_prompt if template else None,
         example_output=template.example_output if template else None,
         custom_request=payload.custom_request,
+        report_context=payload.report_context,
         additional_instructions=payload.additional_instructions or (template.complementary_instructions if template else None),
     )
 

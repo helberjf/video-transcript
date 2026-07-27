@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.router import api_router
-from app.api.routes import forms, history, report_templates, reports, settings, transcriptions, uploads
+from app.api.routes import document_models, forms, history, report_templates, reports, settings, transcriptions, uploads
 from app.core.database import get_db
 from app.main import health_check
 from app.schemas.report import ReportExportExtension
@@ -113,6 +113,25 @@ def _template_payload(template_id: str = "template-1") -> dict[str, object]:
     }
 
 
+def _document_model_payload(document_model_id: str = "document-model-1") -> dict[str, object]:
+    timestamp = _now_iso()
+    return {
+        "id": document_model_id,
+        "workspace_id": "local-workspace",
+        "name": "Modelo documental",
+        "description": "Documento base para testes",
+        "category": "documento",
+        "source_filename": "modelo.txt",
+        "source_mime_type": "text/plain",
+        "source_path": "storage/document_models/document-model-1/modelo.txt",
+        "source_text": "Estrutura do documento base",
+        "base_instructions": "Use esta estrutura como referencia documental.",
+        "default_context": "Contexto padrao do documento",
+        "created_at": timestamp,
+        "updated_at": timestamp,
+    }
+
+
 def _settings_payload() -> dict[str, object]:
     return {
         "openai_api_key_masked": "sk-***123",
@@ -177,6 +196,24 @@ def _build_test_client(monkeypatch) -> TestClient:
     monkeypatch.setattr(report_templates, "update_template", lambda db, template_id, payload: _template_payload(template_id))
     monkeypatch.setattr(report_templates, "delete_template", lambda db, template_id: None)
     monkeypatch.setattr(report_templates, "duplicate_template", lambda db, template_id: _template_payload(f"{template_id}-copy"))
+
+    monkeypatch.setattr(document_models, "list_document_models", lambda db: [_document_model_payload()])
+    monkeypatch.setattr(document_models, "get_document_model", lambda db, document_model_id: _document_model_payload(document_model_id))
+    monkeypatch.setattr(
+        document_models,
+        "create_document_model",
+        lambda db, file, **kwargs: {
+            **_document_model_payload("document-model-created"),
+            "name": kwargs["name"],
+            "description": kwargs["description"],
+            "category": kwargs.get("category") or "documento",
+            "default_context": kwargs["default_context"],
+            "source_filename": file.filename,
+            "source_mime_type": file.content_type,
+        },
+    )
+    monkeypatch.setattr(document_models, "update_document_model", lambda db, document_model_id, payload: _document_model_payload(document_model_id))
+    monkeypatch.setattr(document_models, "delete_document_model", lambda db, document_model_id: None)
 
     monkeypatch.setattr(reports, "generate_report", lambda db, payload: _report_payload(report_id="report-generated", upload_id=payload.upload_id))
     monkeypatch.setattr(reports, "rename_report", lambda db, report_id, title: {**_report_payload(report_id=report_id), "title": title})
@@ -287,6 +324,40 @@ def test_report_template_endpoints(monkeypatch) -> None:
     assert delete_response.json() == {"success": True}
 
 
+def test_document_model_endpoints(monkeypatch) -> None:
+    client = _build_test_client(monkeypatch)
+
+    list_response = client.get("/api/document-models")
+    assert list_response.status_code == 200
+    assert list_response.json()[0]["id"] == "document-model-1"
+
+    get_response = client.get("/api/document-models/document-model-1")
+    assert get_response.status_code == 200
+    assert get_response.json()["default_context"] == "Contexto padrao do documento"
+
+    create_response = client.post(
+        "/api/document-models",
+        data={
+            "name": "Modelo criado",
+            "description": "Documento criado por smoke test",
+            "category": "contrato",
+            "default_context": "Manter tom formal",
+        },
+        files={"file": ("modelo.txt", b"Texto base do documento", "text/plain")},
+    )
+    assert create_response.status_code == 200
+    assert create_response.json()["id"] == "document-model-created"
+    assert create_response.json()["source_filename"] == "modelo.txt"
+
+    update_response = client.put("/api/document-models/document-model-1", json={"name": "Modelo atualizado"})
+    assert update_response.status_code == 200
+    assert update_response.json()["id"] == "document-model-1"
+
+    delete_response = client.delete("/api/document-models/document-model-1")
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {"success": True}
+
+
 def test_upload_and_transcription_endpoints(monkeypatch) -> None:
     client = _build_test_client(monkeypatch)
 
@@ -345,6 +416,8 @@ def test_report_endpoints(monkeypatch) -> None:
             "upload_id": "upload-1",
             "template_id": "template-1",
             "custom_request": "Resuma os pontos principais.",
+            "document_model_id": "document-model-1",
+            "report_context": "Contexto temporario da geracao.",
             "additional_instructions": "Use bullet points.",
             "title": "Relatório final",
         },
@@ -515,6 +588,7 @@ def test_report_error_endpoints(monkeypatch) -> None:
             "upload_id": "missing-upload",
             "template_id": None,
             "custom_request": "Resuma os pontos principais.",
+            "report_context": "Contexto temporario da geracao.",
             "additional_instructions": None,
             "title": "RelatÃ³rio final",
         },

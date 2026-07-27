@@ -10,7 +10,9 @@ from app.schemas.common import ORMModel
 class GenerateReportRequest(BaseModel):
     upload_id: str
     template_id: str | None = None
+    document_model_id: str | None = None
     custom_request: str | None = None
+    report_context: str | None = None
     additional_instructions: str | None = None
     title: str = Field(default="Relatório gerado", min_length=3, max_length=160)
 

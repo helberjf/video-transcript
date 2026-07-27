@@ -44,6 +44,7 @@ electron/resources/frontend/
 electron/resources/ffmpeg/
 electron/.pyinstaller/
 temp-whisper-check/
+.codex-run/
 
 # IDE
 .vscode/

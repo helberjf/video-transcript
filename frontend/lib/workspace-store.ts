@@ -40,6 +40,7 @@ export const DEFAULT_WORKSPACE: WorkspaceProfile = {
 
 const WORKSPACE_KEY = "formreport.workspace.profile";
 const ACTIVITY_PREFIX = "formreport.workspace.activity.";
+const PENDING_REPORT_CONTEXT_PREFIX = "formreport.workspace.pending-report-context.";
 export const WORKSPACE_CHANGE_EVENT = "formreport:workspace-changed";
 
 function canUseStorage(): boolean {
@@ -136,4 +137,25 @@ export function appendWorkspaceActivity(activity: Omit<WorkspaceActivity, "id" |
   };
   const current = getWorkspaceActivity(workspace.id);
   window.localStorage.setItem(`${ACTIVITY_PREFIX}${workspace.id}`, JSON.stringify([nextActivity, ...current].slice(0, 60)));
+}
+
+export function savePendingReportContext(context: string): void {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  const workspace = loadWorkspaceProfile();
+  window.localStorage.setItem(`${PENDING_REPORT_CONTEXT_PREFIX}${workspace.id}`, context);
+}
+
+export function consumePendingReportContext(): string {
+  if (!canUseStorage()) {
+    return "";
+  }
+
+  const workspace = loadWorkspaceProfile();
+  const key = `${PENDING_REPORT_CONTEXT_PREFIX}${workspace.id}`;
+  const value = window.localStorage.getItem(key) ?? "";
+  window.localStorage.removeItem(key);
+  return value;
 }

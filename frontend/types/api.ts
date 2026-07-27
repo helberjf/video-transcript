@@ -187,6 +187,38 @@ export interface ReportTemplate {
   updated_at: string;
 }
 
+export interface DocumentModelRead {
+  id: string;
+  workspace_id?: string;
+  name: string;
+  description: string;
+  category: string;
+  source_filename: string;
+  source_mime_type: string;
+  source_path: string;
+  source_text: string;
+  base_instructions: string;
+  default_context: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentModelCreatePayload {
+  name: string;
+  description: string;
+  category?: string | null;
+  default_context: string;
+  base_instructions?: string | null;
+}
+
+export interface DocumentModelUpdatePayload {
+  name?: string | null;
+  description?: string | null;
+  category?: string | null;
+  default_context?: string | null;
+  base_instructions?: string | null;
+}
+
 export interface TemplateReferenceAnalysis {
   name: string;
   description: string;
@@ -219,6 +251,16 @@ export interface ReportRead {
   output_format: ReportFormat;
   generator_engine: Engine;
   created_at: string;
+}
+
+export interface GenerateReportPayload {
+  upload_id: string;
+  template_id?: string | null;
+  document_model_id?: string | null;
+  custom_request?: string | null;
+  report_context?: string | null;
+  additional_instructions?: string | null;
+  title: string;
 }
 
 export interface ReportExportRead {

@@ -70,7 +70,7 @@ async function main() {
   console.log(`  Email  : ${client.email}`);
   console.log(`  Senha  : ${CLIENT_PASSWORD}`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("\n  Use /acesso para fazer login com essas credenciais.\n");
+  console.log("\n  Use /login para fazer login com essas credenciais.\n");
 }
 
 main()

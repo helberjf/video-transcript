@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,9 +12,9 @@ import {
   WHISPER_MODEL_OPTIONS,
 } from "@/lib/transcription-options";
 import { formatBytes, formatDuration } from "@/lib/utils";
-import { getSettings, importRemoteMedia, startProcessing, uploadFile } from "@/services/api";
+import { createDocumentModel, getSettings, importRemoteMedia, startProcessing, uploadFile } from "@/services/api";
 import type { RemoteMediaSource, TranscriptionProvider } from "@/types/api";
-import { appendWorkspaceActivity } from "@/lib/workspace-store";
+import { appendWorkspaceActivity, savePendingReportContext } from "@/lib/workspace-store";
 
 const TAB_CONTENT = {
   upload: {
@@ -26,6 +26,11 @@ const TAB_CONTENT = {
     label: "Gravar audio",
     title: "Grave pelo microfone e transcreva",
     description: "Perfeito para reunioes, ideias e ditados rapidos.",
+  },
+  documentModel: {
+    label: "Modelos de documentos",
+    title: "Crie um modelo de documento reutilizavel",
+    description: "Envie um PDF, DOCX, ODT ou texto base para salvar um padrao de documento.",
   },
   youtube: {
     label: "YouTube",
@@ -98,6 +103,16 @@ export default function UploadPage() {
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [instagramUrl, setInstagramUrl] = useState("");
+  const [includeReportContext, setIncludeReportContext] = useState(false);
+  const [reportContext, setReportContext] = useState("");
+  const [documentModelFile, setDocumentModelFile] = useState<File | null>(null);
+  const [documentModelName, setDocumentModelName] = useState("");
+  const [documentModelDescription, setDocumentModelDescription] = useState("");
+  const [documentModelCategory, setDocumentModelCategory] = useState("");
+  const [documentModelDefaultContext, setDocumentModelDefaultContext] = useState("");
+  const [documentModelBusy, setDocumentModelBusy] = useState(false);
+  const [documentModelError, setDocumentModelError] = useState<string | null>(null);
+  const [documentModelMessage, setDocumentModelMessage] = useState<string | null>(null);
   const [language, setLanguage] = useState("pt-BR");
   const [useApi, setUseApi] = useState(true);
   const [whisperModel, setWhisperModel] = useState("medium");
@@ -171,6 +186,9 @@ export default function UploadPage() {
 
     try {
       const upload = await uploadFile(mediaFile, setProgress);
+      if (includeReportContext && reportContext.trim()) {
+        savePendingReportContext(reportContext.trim());
+      }
       appendWorkspaceActivity({
         type: "upload",
         title: "Upload criado",
@@ -288,6 +306,9 @@ export default function UploadPage() {
         source,
         url: url.trim(),
       });
+      if (includeReportContext && reportContext.trim()) {
+        savePendingReportContext(reportContext.trim());
+      }
       appendWorkspaceActivity({
         type: "upload",
         title: `Midia importada do ${getRemoteSourceLabel(source)}`,
@@ -312,6 +333,47 @@ export default function UploadPage() {
       return;
     }
 
+    if (mode === "documentModel") {
+      if (!documentModelFile) {
+        setDocumentModelError("Selecione um documento base para salvar o modelo.");
+        return;
+      }
+      if (!documentModelName.trim() || !documentModelDescription.trim() || !documentModelDefaultContext.trim()) {
+        setDocumentModelError("Preencha nome, descriÃ§Ã£o e contexto padrÃ£o.");
+        return;
+      }
+
+      setDocumentModelBusy(true);
+      setDocumentModelError(null);
+      setDocumentModelMessage(null);
+
+      try {
+        const created = await createDocumentModel(documentModelFile, {
+          name: documentModelName,
+          description: documentModelDescription,
+          category: documentModelCategory || null,
+          default_context: documentModelDefaultContext,
+        });
+        appendWorkspaceActivity({
+          type: "workspace",
+          title: "Modelo de documento criado",
+          description: `${created.name} foi salvo como base reutilizavel.`,
+          href: `/uploads`,
+        });
+        setDocumentModelMessage("Modelo de documento salvo com sucesso.");
+        setDocumentModelFile(null);
+        setDocumentModelName("");
+        setDocumentModelDescription("");
+        setDocumentModelCategory("");
+        setDocumentModelDefaultContext("");
+      } catch (err) {
+        setDocumentModelError(err instanceof Error ? err.message : "Falha ao salvar modelo de documento.");
+      } finally {
+        setDocumentModelBusy(false);
+      }
+      return;
+    }
+
     await submitRemote(mode, remoteUrl);
   };
 
@@ -320,11 +382,15 @@ export default function UploadPage() {
       ? "Enviando e iniciando processamento..."
       : mode === "record"
         ? "Enviando gravacao e iniciando processamento..."
+        : mode === "documentModel"
+          ? "Salvando modelo de documento..."
       : `Baixando do ${getRemoteSourceLabel(mode)} e iniciando processamento...`
     : mode === "upload"
       ? "Enviar arquivo"
       : mode === "record"
         ? "Enviar gravacao e transcrever"
+        : mode === "documentModel"
+          ? "Salvar modelo de documento"
       : `Baixar do ${getRemoteSourceLabel(mode)} e processar`;
 
   return (
@@ -338,7 +404,7 @@ export default function UploadPage() {
       <div className="max-w-3xl">
         <section className="panel p-6">
           <div className="space-y-5">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {(Object.entries(TAB_CONTENT) as Array<[UploadEntryMode, (typeof TAB_CONTENT)[UploadEntryMode]]>).map(([key, item]) => {
                 const active = mode === key;
                 return (
@@ -367,132 +433,234 @@ export default function UploadPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate">Origem da midia</p>
               <h3 className="mt-3 text-xl font-semibold text-ink">{currentTab.title}</h3>
 
-              {mode === "upload" ? (
-                <div key="upload-input" className="mt-4">
-                  <label className="mb-2 block text-sm font-medium">Arquivo de midia</label>
-                  <input
-                    className="field"
-                    type="file"
-                    accept=".mp4,.mov,.mkv,.avi,.webm,.mp3,.wav,.m4a,.aac,.ogg,.flac"
-                    onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                  />
-                  {file ? <p className="mt-2 text-sm text-slate">{file.name} - {formatBytes(file.size)}</p> : null}
-                </div>
-              ) : mode === "record" ? (
-                <div key="record-input" className="mt-4 space-y-4">
+              {mode === "documentModel" ? (
+                <div className="mt-4 space-y-4">
                   <div className="rounded-[1.4rem] border border-white/10 bg-midnight/35 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-ink">
-                          {recordingState === "recording" ? "Gravando agora" : recordedFile ? "Gravacao pronta" : "Microfone pronto"}
+                    <p className="text-sm font-semibold text-ink">Documento base</p>
+                    <p className="mt-1 text-sm text-slate">Envie o arquivo que servira como padrao reutilizavel para novos relatorios.</p>
+                    <div className="mt-4 space-y-2">
+                      <label className="block text-sm font-medium">Arquivo base</label>
+                      <input
+                        className="field"
+                        type="file"
+                        accept=".pdf,.docx,.odt,.txt,.md,.markdown,.csv"
+                        onChange={(event) => setDocumentModelFile(event.target.files?.[0] ?? null)}
+                      />
+                      {documentModelFile ? (
+                        <p className="text-sm text-slate">
+                          {documentModelFile.name} - {formatBytes(documentModelFile.size)}
                         </p>
-                        <p className="mt-1 text-sm text-slate">
-                          {recordingState === "recording"
-                            ? `Tempo gravado: ${formatDuration(recordingSeconds)}`
-                            : recordedFile
-                              ? `${recordedFile.name} - ${formatBytes(recordedFile.size)}`
-                              : "Clique em iniciar e permita acesso ao microfone."}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {recordingState === "recording" ? (
-                          <button className="button-danger" type="button" onClick={stopRecording}>
-                            Parar gravacao
-                          </button>
-                        ) : (
-                          <button className="button-secondary" type="button" disabled={busy} onClick={() => void startRecording()}>
-                            {recordedFile ? "Gravar de novo" : "Iniciar gravacao"}
-                          </button>
-                        )}
-                        {recordedFile ? (
-                          <button className="button-secondary" type="button" disabled={busy || recordingState === "recording"} onClick={discardRecording}>
-                            Descartar
-                          </button>
-                        ) : null}
-                      </div>
+                      ) : null}
                     </div>
-
-                    {recordingUrl ? (
-                      <audio className="mt-4 w-full" controls src={recordingUrl} />
-                    ) : null}
                   </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">Nome do modelo</label>
+                      <input className="field" value={documentModelName} onChange={(event) => setDocumentModelName(event.target.value)} />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">Categoria</label>
+                      <input className="field" value={documentModelCategory} onChange={(event) => setDocumentModelCategory(event.target.value)} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">DescriÃ§Ã£o</label>
+                    <textarea
+                      className="field min-h-[96px]"
+                      value={documentModelDescription}
+                      onChange={(event) => setDocumentModelDescription(event.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">Contexto padrÃ£o</label>
+                    <textarea
+                      className="field min-h-[120px]"
+                      value={documentModelDefaultContext}
+                      onChange={(event) => setDocumentModelDefaultContext(event.target.value)}
+                      placeholder="Ex.: Use linguagem formal, destaque datas, preserve ordem de seÃ§Ãµes..."
+                    />
+                  </div>
+
                   <p className="text-sm text-slate">
-                    Ao enviar, a gravacao vira um upload normal: o backend normaliza o audio, transcreve e abre a tela para aplicar um modelo.
+                    O sistema vai extrair o texto do arquivo, salvar o documento original e manter esse contexto como padrÃ£o do modelo.
                   </p>
-                  {recordingError ? <p className="rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{recordingError}</p> : null}
+
+                  {documentModelError ? <p className="rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{documentModelError}</p> : null}
+                  {documentModelMessage ? <p className="rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{documentModelMessage}</p> : null}
                 </div>
               ) : (
-                <div key={mode} className="mt-4 space-y-2">
-                  <label className="block text-sm font-medium">Link do {getRemoteSourceLabel(remoteSource ?? "youtube")}</label>
-                  <input
-                    className="field"
-                    type="url"
-                    inputMode="url"
-                    placeholder={
-                      mode === "youtube"
-                        ? "https://www.youtube.com/watch?v=..."
-                        : "https://www.instagram.com/reel/..."
-                    }
-                    value={remoteUrl}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      if (mode === "youtube") {
-                        setYoutubeUrl(value);
-                      } else {
-                        setInstagramUrl(value);
-                      }
-                    }}
-                  />
-                  <p className="text-sm text-slate">
-                    O backend baixa a midia com yt-dlp, cria o upload automaticamente e segue para a transcricao.
-                  </p>
+                <div className="mt-4 space-y-4">
+                  {mode === "upload" ? (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium">Arquivo de midia</label>
+                      <input
+                        className="field"
+                        type="file"
+                        accept=".mp4,.mov,.mkv,.avi,.webm,.mp3,.wav,.m4a,.aac,.ogg,.flac"
+                        onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                      />
+                      {file ? <p className="text-sm text-slate">{file.name} - {formatBytes(file.size)}</p> : null}
+                    </div>
+                  ) : mode === "record" ? (
+                    <div className="space-y-4">
+                      <div className="rounded-[1.4rem] border border-white/10 bg-midnight/35 p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-ink">
+                              {recordingState === "recording" ? "Gravando agora" : recordedFile ? "Gravacao pronta" : "Microfone pronto"}
+                            </p>
+                            <p className="mt-1 text-sm text-slate">
+                              {recordingState === "recording"
+                                ? `Tempo gravado: ${formatDuration(recordingSeconds)}`
+                                : recordedFile
+                                  ? `${recordedFile.name} - ${formatBytes(recordedFile.size)}`
+                                  : "Clique em iniciar e permita acesso ao microfone."}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {recordingState === "recording" ? (
+                              <button className="button-danger" type="button" onClick={stopRecording}>
+                                Parar gravacao
+                              </button>
+                            ) : (
+                              <button className="button-secondary" type="button" disabled={busy} onClick={() => void startRecording()}>
+                                {recordedFile ? "Gravar de novo" : "Iniciar gravacao"}
+                              </button>
+                            )}
+                            {recordedFile ? (
+                              <button className="button-secondary" type="button" disabled={busy || recordingState === "recording"} onClick={discardRecording}>
+                                Descartar
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {recordingUrl ? <audio className="mt-4 w-full" controls src={recordingUrl} /> : null}
+                      </div>
+                      <p className="text-sm text-slate">
+                        Ao enviar, a gravacao vira um upload normal: o backend normaliza o audio, transcreve e abre a tela para aplicar um modelo.
+                      </p>
+                      {recordingError ? <p className="rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{recordingError}</p> : null}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium">Link do {getRemoteSourceLabel(remoteSource ?? "youtube")}</label>
+                      <input
+                        className="field"
+                        type="url"
+                        inputMode="url"
+                        placeholder={
+                          mode === "youtube"
+                            ? "https://www.youtube.com/watch?v=..."
+                            : "https://www.instagram.com/reel/..."
+                        }
+                        value={remoteUrl}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          if (mode === "youtube") {
+                            setYoutubeUrl(value);
+                          } else {
+                            setInstagramUrl(value);
+                          }
+                        }}
+                      />
+                      <p className="text-sm text-slate">
+                        O backend baixa a midia com yt-dlp, cria o upload automaticamente e segue para a transcricao.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="rounded-[1.4rem] border border-white/10 bg-midnight/35 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-ink">Contexto temporÃ¡rio</p>
+                          <p className="mt-1 text-sm text-slate">Use esta instruÃ§Ã£o apenas para o relatÃ³rio desta execuÃ§Ã£o.</p>
+                        </div>
+                        <label className="flex items-center gap-2 text-sm text-slate">
+                          <input
+                            type="checkbox"
+                            checked={includeReportContext}
+                            onChange={(event) => {
+                              setIncludeReportContext(event.target.checked);
+                              if (!event.target.checked) {
+                                setReportContext("");
+                              }
+                            }}
+                          />
+                          Ativar
+                        </label>
+                      </div>
+                      {includeReportContext ? (
+                        <textarea
+                          className="field mt-4 min-h-[120px]"
+                          value={reportContext}
+                          onChange={(event) => setReportContext(event.target.value)}
+                          placeholder="Ex.: destacar pendÃªncias, tom formal, foco em decisÃµes e prazos..."
+                        />
+                      ) : null}
+                    </div>
                 </div>
               )}
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium">Idioma preferido</label>
-              <select className="field" value={language} onChange={(event) => setLanguage(event.target.value)}>
-                {LANGUAGE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {mode !== "documentModel" ? (
+              <>
+                <div>
+                  <label className="mb-2 block text-sm font-medium">Idioma preferido</label>
+                  <select className="field" value={language} onChange={(event) => setLanguage(event.target.value)}>
+                    {LANGUAGE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium">Modelo Whisper</label>
-              <select className="field" value={whisperModel} onChange={(event) => setWhisperModel(event.target.value)}>
-                {WHISPER_MODEL_OPTIONS.map((model) => (
-                  <option key={model} value={model}>{model}</option>
-                ))}
-              </select>
-            </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium">Modelo Whisper</label>
+                  <select className="field" value={whisperModel} onChange={(event) => setWhisperModel(event.target.value)}>
+                    {WHISPER_MODEL_OPTIONS.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium">IA para transcrever</label>
-              <select
-                className="field"
-                value={transcriptionProvider}
-                onChange={(event) => setTranscriptionProvider(event.target.value as TranscriptionProvider)}
-                disabled={!useApi}
-              >
-                {Object.entries(TRANSCRIPTION_PROVIDER_LABELS).map(([provider, label]) => (
-                  <option key={provider} value={provider}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-2 text-sm leading-6 text-slate">{transcriptionProviderDescription}</p>
-            </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium">IA para transcrever</label>
+                  <select
+                    className="field"
+                    value={transcriptionProvider}
+                    onChange={(event) => setTranscriptionProvider(event.target.value as TranscriptionProvider)}
+                    disabled={!useApi}
+                  >
+                    {Object.entries(TRANSCRIPTION_PROVIDER_LABELS).map(([provider, label]) => (
+                      <option key={provider} value={provider}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-sm leading-6 text-slate">{transcriptionProviderDescription}</p>
+                </div>
 
-            <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-ink">
-              <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
-              Usar APIs externas quando disponiveis
-            </label>
+                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-ink">
+                  <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
+                  Usar APIs externas quando disponiveis
+                </label>
+              </>
+            ) : null}
 
-            <button className="button-primary w-full" type="button" disabled={busy || recordingState === "recording"} onClick={() => void handleSubmit()}>
+
+            <button
+              className="button-primary w-full"
+              type="button"
+              disabled={busy || documentModelBusy || recordingState === "recording"}
+              onClick={() => void handleSubmit()}
+            >
               {buttonLabel}
             </button>
 
@@ -509,6 +677,10 @@ export default function UploadPage() {
                   Baixando a midia remota e preparando o processamento. Isso pode levar alguns instantes.
                 </div>
               )
+            ) : documentModelBusy ? (
+              <div className="rounded-2xl border border-sand/20 bg-sand/10 px-4 py-3 text-sm text-sand">
+                Salvando modelo de documento. Isso pode levar alguns instantes.
+              </div>
             ) : null}
 
             {error ? (
