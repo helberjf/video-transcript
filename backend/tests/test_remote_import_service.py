@@ -56,6 +56,8 @@ def test_create_upload_from_remote_url_creates_upload_record(tmp_path, monkeypat
     assert upload.file_type == FileType.VIDEO
     assert upload.original_filename == "Video de teste.mp4"
     assert upload.stored_filename == "remote-deadbeef.mp4"
+    assert upload.source_type == "youtube"
+    assert upload.source_url == "https://youtu.be/abc123"
     assert upload.upload_size_bytes == len(b"fake-video")
     assert created["upload"] is upload
 

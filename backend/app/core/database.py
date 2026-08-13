@@ -40,6 +40,10 @@ def run_startup_migrations() -> None:
         }
         if upload_columns and "workspace_id" not in upload_columns:
             connection.execute(text("ALTER TABLE uploads ADD COLUMN workspace_id VARCHAR(80) DEFAULT 'local-workspace' NOT NULL"))
+        if upload_columns and "source_type" not in upload_columns:
+            connection.execute(text("ALTER TABLE uploads ADD COLUMN source_type VARCHAR(40)"))
+        if upload_columns and "source_url" not in upload_columns:
+            connection.execute(text("ALTER TABLE uploads ADD COLUMN source_url VARCHAR(2000)"))
 
         report_columns = {
             row[1]
@@ -47,6 +51,12 @@ def run_startup_migrations() -> None:
         }
         if report_columns and "workspace_id" not in report_columns:
             connection.execute(text("ALTER TABLE generated_reports ADD COLUMN workspace_id VARCHAR(80) DEFAULT 'local-workspace' NOT NULL"))
+        if report_columns and "custom_request" not in report_columns:
+            connection.execute(text("ALTER TABLE generated_reports ADD COLUMN custom_request TEXT"))
+        if report_columns and "report_context" not in report_columns:
+            connection.execute(text("ALTER TABLE generated_reports ADD COLUMN report_context TEXT"))
+        if report_columns and "additional_instructions" not in report_columns:
+            connection.execute(text("ALTER TABLE generated_reports ADD COLUMN additional_instructions TEXT"))
 
         system_config_columns = {
             row[1]

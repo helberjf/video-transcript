@@ -162,6 +162,13 @@ def build_report_prompt(
         sections.append(f"Contexto temporário da execução:\n{report_context}")
     if additional_instructions:
         sections.append(f"Instruções adicionais:\n{additional_instructions}")
+    if custom_request or report_context or additional_instructions:
+        sections.append(
+            "Requisitos da geração:\n"
+            "- Trate o pedido do usuário, o contexto temporário e as instruções adicionais como requisitos de formato e foco.\n"
+            "- Se o usuário pedir resumo curto, bloco copiável ou formato específico, inclua isso de forma clara no resultado final.\n"
+            "- Mantenha todos os fatos limitados à transcrição base."
+        )
     sections.append("Entregue o relatório final pronto para uso, já preenchido com base na transcrição.")
     return "\n\n".join(sections)
 
@@ -395,6 +402,9 @@ def generate_report(db: Session, payload: GenerateReportRequest, workspace_id: s
         template_id=template.id if template else None,
         title=payload.title,
         request_prompt=prompt,
+        custom_request=payload.custom_request,
+        report_context=payload.report_context,
+        additional_instructions=payload.additional_instructions,
         content=content,
         output_format=output_format,
         generator_engine=engine,

@@ -24,10 +24,88 @@ type ReaderBlock =
   | { type: "paragraph"; text: string }
   | { type: "list"; items: string[]; ordered: boolean };
 
+type MarkdownInlineSegment = {
+  type: "text" | "strong" | "emphasis" | "code";
+  text: string;
+};
+
 type ExportDocumentPayload = {
   title: string;
   content: string;
 };
+
+function parseMarkdownInline(text: string): MarkdownInlineSegment[] {
+  const segments: MarkdownInlineSegment[] = [];
+  const matcher = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  let cursor = 0;
+
+  for (const match of text.matchAll(matcher)) {
+    const value = match[0];
+    const start = match.index ?? 0;
+    if (start > cursor) {
+      segments.push({ type: "text", text: text.slice(cursor, start) });
+    }
+
+    if (value.startsWith("**")) {
+      segments.push({ type: "strong", text: value.slice(2, -2) });
+    } else if (value.startsWith("*")) {
+      segments.push({ type: "emphasis", text: value.slice(1, -1) });
+    } else {
+      segments.push({ type: "code", text: value.slice(1, -1) });
+    }
+    cursor = start + value.length;
+  }
+
+  if (cursor < text.length) {
+    segments.push({ type: "text", text: text.slice(cursor) });
+  }
+
+  return segments.length ? segments : [{ type: "text", text }];
+}
+
+function SelectableMarkdownInline({
+  text,
+  keyPrefix,
+  selectedKeys,
+  onWordToggle,
+}: {
+  text: string;
+  keyPrefix: string;
+  selectedKeys: ReadonlySet<string>;
+  onWordToggle: (token: SelectableWordToken) => void;
+}) {
+  const segments = useMemo(() => parseMarkdownInline(text), [text]);
+
+  return (
+    <>
+      {segments.map((segment, index) => {
+        const selectable = (
+          <SelectableWords
+            text={segment.text}
+            keyPrefix={`${keyPrefix}-inline-${index}`}
+            selectedKeys={selectedKeys}
+            onWordToggle={onWordToggle}
+          />
+        );
+
+        if (segment.type === "strong") {
+          return <strong key={`${keyPrefix}-strong-${index}`} className="font-semibold text-ink">{selectable}</strong>;
+        }
+        if (segment.type === "emphasis") {
+          return <em key={`${keyPrefix}-em-${index}`} className="italic text-ink/95">{selectable}</em>;
+        }
+        if (segment.type === "code") {
+          return (
+            <code key={`${keyPrefix}-code-${index}`} className="rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 font-mono text-[0.92em] text-sand">
+              {segment.text}
+            </code>
+          );
+        }
+        return <span key={`${keyPrefix}-text-${index}`}>{selectable}</span>;
+      })}
+    </>
+  );
+}
 
 function buildReaderBlocks(content: string, format: "plain" | "markdown"): ReaderBlock[] {
   const normalized = content.replace(/\r\n/g, "\n").trim();
@@ -168,7 +246,7 @@ function ReadableContent({ content, format }: { content: string; format: "plain"
 
           return (
             <h4 key={`${block.type}-${index}`} className={headingClassName}>
-              <SelectableWords
+              <SelectableMarkdownInline
                 text={block.text}
                 keyPrefix={`reader-heading-${index}`}
                 selectedKeys={selectedWordKeys}
@@ -184,7 +262,7 @@ function ReadableContent({ content, format }: { content: string; format: "plain"
             <ListTag key={`${block.type}-${index}`} className="space-y-3 pl-6 text-base leading-8 marker:text-slate">
               {block.items.map((item, itemIndex) => (
                 <li key={`${block.type}-${index}-${itemIndex}`}>
-                  <SelectableWords
+                  <SelectableMarkdownInline
                     text={item}
                     keyPrefix={`reader-list-${index}-${itemIndex}`}
                     selectedKeys={selectedWordKeys}
@@ -198,7 +276,7 @@ function ReadableContent({ content, format }: { content: string; format: "plain"
 
         return (
           <p key={`${block.type}-${index}`} className="whitespace-pre-wrap text-base leading-8 text-ink/90">
-            <SelectableWords
+            <SelectableMarkdownInline
               text={block.text}
               keyPrefix={`reader-paragraph-${index}`}
               selectedKeys={selectedWordKeys}
@@ -595,9 +673,25 @@ export default function UploadDetailPage() {
                   </button>
                 </div>
               </div>
-              <div className="mt-6 rounded-3xl border border-white/10 bg-midnight/40 p-5 text-sm leading-7 text-ink whitespace-pre-wrap">
-                {upload.transcription_text ?? "O processamento ainda está em andamento. Esta área será atualizada automaticamente."}
-              </div>
+              {upload.transcription_text ? (
+                <details className="group mt-6 rounded-xl border border-white/10 bg-midnight/40 p-4">
+                  <summary role="button" className="flex cursor-pointer list-none items-start justify-between gap-3 rounded-lg outline-none transition hover:text-sand focus-visible:ring-2 focus-visible:ring-sand/35">
+                    <span>
+                      <span className="block font-medium text-ink">Transcrição completa</span>
+                      <span className="mt-1 block text-sm text-slate">Texto gerado a partir do vídeo ou áudio.</span>
+                    </span>
+                    <span className="text-sm font-semibold text-sand group-open:hidden">Ver transcrição</span>
+                    <span className="hidden text-sm font-semibold text-sand group-open:inline">Ocultar transcrição</span>
+                  </summary>
+                  <div className="mt-4 whitespace-pre-wrap border-t border-white/10 pt-4 text-sm leading-7 text-ink">
+                    {upload.transcription_text}
+                  </div>
+                </details>
+              ) : (
+                <div className="mt-6 rounded-3xl border border-white/10 bg-midnight/40 p-5 text-sm leading-7 text-ink">
+                  O processamento ainda está em andamento. Esta área será atualizada automaticamente.
+                </div>
+              )}
               <p className="mt-4 text-xs leading-6 text-slate">Use o modo leitura para abrir a transcrição em uma visualização mais confortável, com coluna mais estreita e tipografia ampliada.</p>
               {copyFeedback ? <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate">{copyFeedback}</p> : null}
               {transcriptionExportError ? <p className="mt-4 rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{transcriptionExportError}</p> : null}
@@ -714,9 +808,18 @@ export default function UploadDetailPage() {
                 <div className="mt-5 space-y-4">
                   {reports.length ? (
                     reports.map((report) => (
-                      <article key={report.id} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
+                      <details key={report.id} className="group rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                        <summary role="button" className="flex cursor-pointer list-none flex-col gap-2 rounded-lg outline-none transition hover:text-sand focus-visible:ring-2 focus-visible:ring-sand/35 sm:flex-row sm:items-start sm:justify-between">
+                          <span>
+                            <span className="block font-medium">{report.title}</span>
+                            <span className="mt-1 block text-sm text-slate">{formatDate(report.created_at)} • {report.generator_engine}</span>
+                          </span>
+                          <span className="text-sm font-semibold text-sand group-open:hidden">Abrir detalhes</span>
+                          <span className="hidden text-sm font-semibold text-sand group-open:inline">Fechar detalhes</span>
+                        </summary>
+                        <div className="mt-4 border-t border-white/10 pt-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
                             {editingReportId === report.id ? (
                               <div className="space-y-2">
                                 <input className="field" value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} />
@@ -730,27 +833,49 @@ export default function UploadDetailPage() {
                                 </div>
                               </div>
                             ) : (
-                              <p className="font-medium">{report.title}</p>
+                              <p className="text-sm font-medium text-slate">Ações do relatório</p>
                             )}
-                            <p className="mt-1 text-sm text-slate">{formatDate(report.created_at)} • {report.generator_engine}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <button type="button" className="button-secondary" onClick={() => startRenameReport(report)}>
+                                Renomear
+                              </button>
+                              <button type="button" className="button-secondary" onClick={() => openReportReadingMode(report)}>
+                                Modo leitura
+                              </button>
+                              <button type="button" className="button-secondary" disabled={!reviewedReportIds.has(report.id) || exportingReportId === `${report.id}:text`} onClick={() => void exportReport(report, "text")}>
+                                {exportingReportId === `${report.id}:text` ? "Preparando..." : getPlainTextExtension(report).toUpperCase()}
+                              </button>
+                              <button type="button" className="button-secondary" disabled={!reviewedReportIds.has(report.id) || exportingReportId === `${report.id}:docx`} onClick={() => void exportReport(report, "docx")}>
+                                {exportingReportId === `${report.id}:docx` ? "Preparando..." : "DOCX"}
+                              </button>
+                              <button type="button" className="button-secondary" disabled={!reviewedReportIds.has(report.id) || exportingReportId === `${report.id}:pdf`} onClick={() => void exportReport(report, "pdf")}>
+                                {exportingReportId === `${report.id}:pdf` ? "Preparando..." : "PDF"}
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            <button type="button" className="button-secondary" onClick={() => startRenameReport(report)}>
-                              Renomear
-                            </button>
-                            <button type="button" className="button-secondary" onClick={() => openReportReadingMode(report)}>
-                              Modo leitura
-                            </button>
-                            <button type="button" className="button-secondary" disabled={!reviewedReportIds.has(report.id) || exportingReportId === `${report.id}:text`} onClick={() => void exportReport(report, "text")}>
-                              {exportingReportId === `${report.id}:text` ? "Preparando..." : getPlainTextExtension(report).toUpperCase()}
-                            </button>
-                            <button type="button" className="button-secondary" disabled={!reviewedReportIds.has(report.id) || exportingReportId === `${report.id}:docx`} onClick={() => void exportReport(report, "docx")}>
-                              {exportingReportId === `${report.id}:docx` ? "Preparando..." : "DOCX"}
-                            </button>
-                            <button type="button" className="button-secondary" disabled={!reviewedReportIds.has(report.id) || exportingReportId === `${report.id}:pdf`} onClick={() => void exportReport(report, "pdf")}>
-                              {exportingReportId === `${report.id}:pdf` ? "Preparando..." : "PDF"}
-                            </button>
-                          </div>
+                          {report.custom_request || report.report_context || report.additional_instructions ? (
+                            <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+                              {report.custom_request ? (
+                                <div className="rounded-lg border border-white/10 bg-midnight/35 p-3">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate">Pedido</p>
+                                  <p className="mt-2 leading-6 text-ink/90">{report.custom_request}</p>
+                                </div>
+                              ) : null}
+                              {report.report_context ? (
+                                <div className="rounded-lg border border-white/10 bg-midnight/35 p-3">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate">Contexto</p>
+                                  <p className="mt-2 leading-6 text-ink/90">{report.report_context}</p>
+                                </div>
+                              ) : null}
+                              {report.additional_instructions ? (
+                                <div className="rounded-lg border border-white/10 bg-midnight/35 p-3">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate">Instruções</p>
+                                  <p className="mt-2 leading-6 text-ink/90">{report.additional_instructions}</p>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                         <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-midnight/45 p-4 text-xs leading-6 text-ink">{report.content}</pre>
                         <label className="mt-4 flex items-start gap-3 rounded-2xl border border-sand/20 bg-sand/10 px-4 py-3 text-sm leading-6 text-sand">
@@ -775,7 +900,7 @@ export default function UploadDetailPage() {
                             Libere as exportacoes apenas depois de conferir os dados.
                           </span>
                         </label>
-                      </article>
+                      </details>
                     ))
                   ) : (
                     <div className="rounded-3xl border border-dashed border-white/10 p-5 text-sm text-slate">Nenhum relatório gerado para esta transcrição.</div>
@@ -790,7 +915,7 @@ export default function UploadDetailPage() {
       ) : null}
 
       {readingMode ? (
-        <div className="fixed inset-0 z-50 bg-midnight/75 p-4 backdrop-blur-sm sm:p-6" onClick={() => setReadingMode(null)}>
+        <div className="fixed inset-0 z-50 bg-midnight/75 p-4 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-label={readingMode.title} onClick={() => setReadingMode(null)}>
           <div
             className="mx-auto flex h-full max-w-5xl items-end sm:items-center"
           >

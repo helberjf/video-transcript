@@ -317,6 +317,8 @@ def create_upload_from_remote_url(db: Session, source: RemoteMediaSource, url: s
             file_type=file_type,
             mime_type=mime_type,
             original_path=str(downloaded_path),
+            source_type=source,
+            source_url=normalized_url,
             upload_size_bytes=file_size,
         )
         repository = UploadRepository(db)

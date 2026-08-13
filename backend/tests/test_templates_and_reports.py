@@ -463,6 +463,54 @@ def test_generate_report_prompt_includes_document_model_context(tmp_path, monkey
     engine.dispose()
 
 
+def test_generate_report_persists_request_context_metadata(tmp_path, monkeypatch) -> None:
+    session, engine = create_test_session(tmp_path)
+    upload = Upload(
+        original_filename="aula-lambda.mp4",
+        stored_filename="aula-lambda.mp4",
+        file_type=FileType.VIDEO,
+        mime_type="video/mp4",
+        original_path=str(tmp_path / "aula-lambda.mp4"),
+        upload_size_bytes=10,
+        transcription_text="AWS Lambda executa codigo serverless orientado a eventos.",
+        transcription_engine=TranscriptionEngine.WHISPER,
+        status=ProcessingStatus.COMPLETED,
+    )
+    session.add(upload)
+    session.commit()
+    session.refresh(upload)
+
+    monkeypatch.setattr(
+        report_service,
+        "get_effective_provider_settings",
+        lambda db: {
+            "openai_api_key": None,
+            "gemini_api_key": None,
+            "report_provider_order": ["local"],
+            "export_directory": str(tmp_path / "exports"),
+        },
+    )
+
+    report = generate_report(
+        session,
+        GenerateReportRequest(
+            upload_id=upload.id,
+            template_id=None,
+            custom_request="Faça um resumo objetivo para estudar para a prova da DVA-C02.",
+            report_context="Tem que ter um resumo pequeno também para copiar para o Notion.",
+            additional_instructions="Priorize tópicos cobrados na certificação.",
+            title="Resumo DVA-C02",
+        ),
+    )
+
+    assert report.custom_request == "Faça um resumo objetivo para estudar para a prova da DVA-C02."
+    assert report.report_context == "Tem que ter um resumo pequeno também para copiar para o Notion."
+    assert report.additional_instructions == "Priorize tópicos cobrados na certificação."
+
+    session.close()
+    engine.dispose()
+
+
 def test_generate_report_can_prioritize_claude_and_rename(tmp_path, monkeypatch) -> None:
     session, engine = create_test_session(tmp_path)
     upload = Upload(

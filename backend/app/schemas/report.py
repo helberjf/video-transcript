@@ -43,6 +43,9 @@ class ReportRead(ORMModel):
     template_id: str | None
     title: str
     request_prompt: str
+    custom_request: str | None = None
+    report_context: str | None = None
+    additional_instructions: str | None = None
     content: str
     output_format: ReportFormat
     generator_engine: TranscriptionEngine

@@ -16,6 +16,8 @@ export interface UploadItem {
   mime_type: string;
   original_path: string;
   converted_path: string | null;
+  source_type: RemoteMediaSource | null;
+  source_url: string | null;
   transcription_text: string | null;
   transcription_engine: Engine;
   language_detected: string | null;
@@ -26,6 +28,7 @@ export interface UploadItem {
   report_count: number;
   created_at: string;
   updated_at: string;
+  reports?: ReportRead[];
 }
 
 export interface UploadCreateResponse {
@@ -247,6 +250,9 @@ export interface ReportRead {
   template_id: string | null;
   title: string;
   request_prompt: string;
+  custom_request?: string | null;
+  report_context?: string | null;
+  additional_instructions?: string | null;
   content: string;
   output_format: ReportFormat;
   generator_engine: Engine;

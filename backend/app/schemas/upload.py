@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.models.enums import FileType, ProcessingStatus, TranscriptionEngine
 from app.schemas.common import ORMModel
+from app.schemas.report import ReportRead
 from app.schemas.settings import TranscriptionProvider
 
 
@@ -34,6 +35,8 @@ class UploadDetail(ORMModel):
     mime_type: str
     original_path: str
     converted_path: str | None
+    source_type: str | None = None
+    source_url: str | None = None
     transcription_text: str | None
     transcription_engine: TranscriptionEngine
     language_detected: str | None
@@ -44,6 +47,7 @@ class UploadDetail(ORMModel):
     report_count: int
     created_at: datetime
     updated_at: datetime
+    reports: list[ReportRead] = Field(default_factory=list)
 
 
 class ProcessRequest(BaseModel):

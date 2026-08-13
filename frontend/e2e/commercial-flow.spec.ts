@@ -200,6 +200,158 @@ test("detalhe envia modelo documental e contexto temporario", async ({ page }) =
   });
 });
 
+test("modo leitura renderiza markdown inline do relatorio", async ({ page }) => {
+  await page.route(/\/api\/uploads\/upload-1(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      json: {
+        id: "upload-1",
+        original_filename: "Aula AWS Lambda.mp4",
+        stored_filename: "audio.mp4",
+        file_type: "video",
+        mime_type: "video/mp4",
+        original_path: "storage/uploads/audio.mp4",
+        converted_path: null,
+        source_type: "youtube",
+        source_url: "https://youtu.be/abc123",
+        transcription_text: "Transcricao pronta para relatorio.",
+        transcription_engine: "gemini",
+        language_detected: "pt-BR",
+        status: "completed",
+        upload_size_bytes: 1024,
+        duration_seconds: 12,
+        error_message: null,
+        report_count: 1,
+        reports: [],
+        created_at: "2026-08-13T07:30:00",
+        updated_at: "2026-08-13T07:33:00",
+      },
+    });
+  });
+
+  await page.route(/\/api\/uploads\/upload-1\/reports(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      json: [
+        {
+          id: "report-1",
+          upload_id: "upload-1",
+          template_id: null,
+          title: "Resumo DVA-C02",
+          request_prompt: "Prompt",
+          custom_request: "Faça um resumo objetivo para estudar para a prova da DVA-C02.",
+          report_context: "Tem que ter um resumo pequeno também para eu copiar para o Notion.",
+          additional_instructions: null,
+          content: "# AWS Lambda\n\n- **Definição:** serviço serverless na AWS.",
+          output_format: "markdown",
+          generator_engine: "gemini",
+          created_at: "2026-08-13T07:33:00",
+        },
+      ],
+    });
+  });
+
+  await page.goto("/uploads/upload-1", { waitUntil: "commit" });
+  await page.getByRole("button", { name: /Resumo DVA-C02/ }).click();
+  await page.getByRole("button", { name: "Modo leitura" }).last().click();
+
+  const reader = page.getByRole("dialog", { name: "Resumo DVA-C02" });
+  await expect(reader.getByRole("heading", { name: "AWS Lambda", exact: true })).toBeVisible();
+  await expect(reader.locator("strong", { hasText: "Definição:" })).toBeVisible();
+  await expect(reader.getByText("**Definição:**")).toHaveCount(0);
+});
+
+test("detalhe compacta texto da transcricao em dropdown", async ({ page }) => {
+  await page.route(/\/api\/uploads\/upload-1(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      json: {
+        id: "upload-1",
+        original_filename: "Aula AWS Lambda.mp4",
+        stored_filename: "audio.mp4",
+        file_type: "video",
+        mime_type: "video/mp4",
+        original_path: "storage/uploads/audio.mp4",
+        converted_path: null,
+        source_type: "youtube",
+        source_url: "https://youtu.be/abc123",
+        transcription_text: "Texto completo do video para estudo DVA-C02.",
+        transcription_engine: "gemini",
+        language_detected: "pt-BR",
+        status: "completed",
+        upload_size_bytes: 1024,
+        duration_seconds: 12,
+        error_message: null,
+        report_count: 0,
+        reports: [],
+        created_at: "2026-08-13T07:30:00",
+        updated_at: "2026-08-13T07:33:00",
+      },
+    });
+  });
+  await page.route(/\/api\/uploads\/upload-1\/reports(?:\?.*)?$/, async (route) => {
+    await route.fulfill({ json: [] });
+  });
+
+  await page.goto("/uploads/upload-1", { waitUntil: "commit" });
+
+  await expect(page.getByText("Texto completo do video para estudo DVA-C02.")).not.toBeVisible();
+  await page.getByRole("button", { name: /Ver transcrição/ }).click();
+  await expect(page.getByText("Texto completo do video para estudo DVA-C02.")).toBeVisible();
+});
+
+test("historico compacta relatorios e mostra link do youtube e contexto", async ({ page }) => {
+  await page.route("http://127.0.0.1:8000/api/history", async (route) => {
+    await route.fulfill({
+      json: [
+        {
+          id: "upload-1",
+          original_filename: "Aula AWS Lambda.mp4",
+          stored_filename: "remote-deadbeef.mp4",
+          file_type: "video",
+          mime_type: "video/mp4",
+          original_path: "storage/uploads/remote-deadbeef.mp4",
+          converted_path: null,
+          transcription_text: "Transcricao pronta para relatorio.",
+          transcription_engine: "gemini",
+          language_detected: "pt-BR",
+          status: "completed",
+          upload_size_bytes: 1024,
+          duration_seconds: 600,
+          error_message: null,
+          report_count: 1,
+          source_type: "youtube",
+          source_url: "https://youtu.be/abc123",
+          reports: [
+            {
+              id: "report-1",
+              upload_id: "upload-1",
+              template_id: null,
+              title: "Resumo DVA-C02",
+              request_prompt: "Prompt completo",
+              custom_request: "Faça um resumo objetivo para estudar para a prova da DVA-C02.",
+              report_context: "Tem que ter um resumo pequeno também para eu copiar para o Notion.",
+              additional_instructions: null,
+              content: "# Relatorio",
+              output_format: "markdown",
+              generator_engine: "gemini",
+              created_at: "2026-08-13T07:33:00",
+            },
+          ],
+          created_at: "2026-08-13T07:30:00",
+          updated_at: "2026-08-13T07:33:00",
+        },
+      ],
+    });
+  });
+
+  await page.goto("/history", { waitUntil: "commit" });
+
+  await expect(page.getByText("Faça um resumo objetivo para estudar para a prova da DVA-C02.")).not.toBeVisible();
+  await page.getByRole("button", { name: /Resumo DVA-C02/ }).click();
+
+  await expect(page.getByRole("link", { name: "https://youtu.be/abc123" })).toHaveAttribute("href", "https://youtu.be/abc123");
+  await expect(page.getByText("Faça um resumo objetivo para estudar para a prova da DVA-C02.")).toBeVisible();
+  await expect(page.getByText("Tem que ter um resumo pequeno também para eu copiar para o Notion.")).toBeVisible();
+});
+
 test.skip("fluxo autenticado cobre upload, formulario, documento e exportacao", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Comece pelo fluxo comercial completo" })).toBeVisible();
