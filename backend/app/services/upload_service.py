@@ -74,6 +74,14 @@ def _resolve_cookies_file() -> str | None:
     return None
 
 
+def _with_youtube_android_client(ydl_options: dict[str, Any]) -> dict[str, Any]:
+    extractor_args = dict(ydl_options.get("extractor_args") or {})
+    youtube_args = dict(extractor_args.get("youtube") or {})
+    youtube_args["player_client"] = ["android"]
+    extractor_args["youtube"] = youtube_args
+    return {**ydl_options, "nocheckcertificate": True, "extractor_args": extractor_args}
+
+
 def _build_ydl_options(source: RemoteMediaSource, output_template: str) -> dict[str, Any]:
     ydl_options: dict[str, Any] = {
         "quiet": True,
@@ -184,6 +192,12 @@ def _remote_download_error_message(source: RemoteMediaSource, error: Exception) 
         "requested content is not available",
     )
     if any(fragment in lower_message for fragment in needs_login_fragments):
+        if source == "youtube":
+            return (
+                "YouTube bloqueou o download anonimo achando que a requisicao pode ser automatizada. "
+                "Abra o link no Chromium controlado, conclua qualquer verificacao, reproduza alguns segundos e tente novamente. "
+                "Se continuar bloqueado, baixe o audio ou video por fora e envie como arquivo local."
+            )
         return (
             f"{source_label} exige sessao logada para acessar essa midia. "
             "Va em Configuracoes > Cookies do Instagram, faca upload do cookies.txt exportado do navegador e tente novamente."
@@ -207,6 +221,16 @@ def _is_ssl_certificate_error(error: Exception) -> bool:
     )
 
 
+def _is_youtube_anonymous_access_error(error: Exception) -> bool:
+    lower_message = str(error).lower()
+    return (
+        "sign in to confirm" in lower_message
+        or "not a bot" in lower_message
+        or "use --cookies-from-browser" in lower_message
+        or "requested format is not available" in lower_message
+    )
+
+
 def extract_remote_info_with_ssl_fallback(
     source: RemoteMediaSource,
     url: str,
@@ -226,15 +250,24 @@ def extract_remote_info_with_ssl_fallback(
         with yt_dlp.YoutubeDL(ydl_options) as downloader:
             return downloader.extract_info(url, download=download)
     except Exception as exc:
-        if not _is_ssl_certificate_error(exc) or ydl_options.get("nocheckcertificate"):
-            raise
+        last_error = exc
+        if _is_ssl_certificate_error(exc) and not ydl_options.get("nocheckcertificate"):
+            retry_options = {**ydl_options, "nocheckcertificate": True}
+            try:
+                with yt_dlp.YoutubeDL(retry_options) as downloader:
+                    return downloader.extract_info(url, download=download)
+            except Exception as retry_exc:
+                last_error = retry_exc
 
-        retry_options = {**ydl_options, "nocheckcertificate": True}
-        try:
-            with yt_dlp.YoutubeDL(retry_options) as downloader:
-                return downloader.extract_info(url, download=download)
-        except Exception as retry_exc:
-            raise retry_exc from exc
+        if source == "youtube" and _is_youtube_anonymous_access_error(last_error):
+            android_options = _with_youtube_android_client(ydl_options)
+            try:
+                with yt_dlp.YoutubeDL(android_options) as downloader:
+                    return downloader.extract_info(url, download=download)
+            except Exception as android_exc:
+                raise android_exc from last_error
+
+        raise last_error from exc
 
 
 def create_upload_from_remote_url(db: Session, source: RemoteMediaSource, url: str, workspace_id: str = "local-workspace") -> Upload:

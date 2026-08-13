@@ -100,3 +100,54 @@ def test_build_ydl_options_for_instagram_uses_configured_cookie_file(
 
     assert options["cookiefile"] == str(cookie_file)
     assert "cookiesfrombrowser" not in options
+
+
+def test_youtube_bot_block_retries_with_android_client_without_cookies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class FakeYoutubeDL:
+        def __init__(self, options) -> None:
+            self.options = options
+            calls.append(options)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extract_info(self, url: str, download: bool = False):
+            if len(calls) == 1:
+                raise RuntimeError("certificate verify failed: unable to get local issuer certificate")
+            if len(calls) == 2:
+                raise RuntimeError("Sign in to confirm you're not a bot. Use --cookies-from-browser or --cookies")
+            return {"id": "abc123", "title": "Video de teste"}
+
+    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
+
+    result = upload_service.extract_remote_info_with_ssl_fallback(
+        "youtube",
+        "https://youtu.be/abc123",
+        upload_service._build_ydl_options("youtube", "remote.%(ext)s"),
+        download=False,
+    )
+
+    assert result == {"id": "abc123", "title": "Video de teste"}
+    assert len(calls) == 3
+    assert calls[1]["nocheckcertificate"] is True
+    assert calls[2]["nocheckcertificate"] is True
+    assert calls[2]["extractor_args"] == {"youtube": {"player_client": ["android"]}}
+    assert all("cookiefile" not in options for options in calls)
+    assert all("cookiesfrombrowser" not in options for options in calls)
+
+
+def test_youtube_login_error_message_does_not_request_instagram_cookies() -> None:
+    message = upload_service._remote_download_error_message(
+        "youtube",
+        RuntimeError("Sign in to confirm you're not a bot. Use --cookies-from-browser or --cookies"),
+    )
+
+    assert "Cookies do Instagram" not in message
+    assert "YouTube bloqueou o download anonimo" in message
