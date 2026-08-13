@@ -67,3 +67,36 @@ def test_create_upload_from_remote_url_rejects_invalid_source_url(monkeypatch: p
         upload_service.create_upload_from_remote_url(db=object(), source="instagram", url="https://youtube.com/watch?v=abc")
 
     assert exc_info.value.detail == "URL invalida para Instagram"
+
+
+def test_build_ydl_options_for_youtube_ignores_cookie_configuration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cookie_file = tmp_path / "cookies.txt"
+    cookie_file.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    monkeypatch.setenv("INSTAGRAM_COOKIES_FILE", str(cookie_file))
+    monkeypatch.setenv("YTDLP_COOKIES_FROM_BROWSER", "chrome:Default")
+
+    options = upload_service._build_ydl_options("youtube", "remote.%(ext)s")
+
+    assert options["format"] == "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b"
+    assert "cookiefile" not in options
+    assert "cookiesfrombrowser" not in options
+
+
+def test_build_ydl_options_for_instagram_uses_configured_cookie_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cookie_file = tmp_path / "cookies.txt"
+    cookie_file.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    monkeypatch.setenv("INSTAGRAM_COOKIES_FILE", str(cookie_file))
+    monkeypatch.setenv("YTDLP_COOKIES_FROM_BROWSER", "chrome:Default")
+
+    options = upload_service._build_ydl_options("instagram", "remote.%(ext)s")
+
+    assert options["cookiefile"] == str(cookie_file)
+    assert "cookiesfrombrowser" not in options

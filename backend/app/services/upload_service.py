@@ -75,12 +75,6 @@ def _resolve_cookies_file() -> str | None:
 
 
 def _build_ydl_options(source: RemoteMediaSource, output_template: str) -> dict[str, Any]:
-    cookies_file = _resolve_cookies_file()
-    cookies_from_browser = (
-        os.environ.get("INSTAGRAM_COOKIES_FROM_BROWSER")
-        or os.environ.get("YTDLP_COOKIES_FROM_BROWSER")
-    )
-
     ydl_options: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
@@ -95,12 +89,17 @@ def _build_ydl_options(source: RemoteMediaSource, output_template: str) -> dict[
     else:
         ydl_options["format"] = "best[ext=mp4]/best"
 
-    if cookies_file:
-        ydl_options["cookiefile"] = cookies_file
-    elif cookies_from_browser:
-        parsed_cookies = _parse_cookies_from_browser(cookies_from_browser)
-        if parsed_cookies:
-            ydl_options["cookiesfrombrowser"] = parsed_cookies
+        cookies_file = _resolve_cookies_file()
+        cookies_from_browser = (
+            os.environ.get("INSTAGRAM_COOKIES_FROM_BROWSER")
+            or os.environ.get("YTDLP_COOKIES_FROM_BROWSER")
+        )
+        if cookies_file:
+            ydl_options["cookiefile"] = cookies_file
+        elif cookies_from_browser:
+            parsed_cookies = _parse_cookies_from_browser(cookies_from_browser)
+            if parsed_cookies:
+                ydl_options["cookiesfrombrowser"] = parsed_cookies
 
     return ydl_options
 
