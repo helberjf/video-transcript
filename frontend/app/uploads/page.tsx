@@ -497,6 +497,7 @@ export default function UploadPage() {
                     <div className="space-y-2">
                       <label className="block text-sm font-medium">Arquivo de midia</label>
                       <input
+                        key="local-media-file"
                         className="field"
                         type="file"
                         accept=".mp4,.mov,.mkv,.avi,.webm,.mp3,.wav,.m4a,.aac,.ogg,.flac"
@@ -549,6 +550,7 @@ export default function UploadPage() {
                     <div className="space-y-2">
                       <label className="block text-sm font-medium">Link do {getRemoteSourceLabel(remoteSource ?? "youtube")}</label>
                       <input
+                        key="remote-media-url"
                         className="field"
                         type="url"
                         inputMode="url"

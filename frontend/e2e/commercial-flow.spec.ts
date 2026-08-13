@@ -148,6 +148,22 @@ test("relatorios mostra aba de modelos de documentos", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Salvar modelo de documento" })).toBeVisible();
 });
 
+test("alterna entre arquivo local e link remoto sem aviso de input controlado", async ({ page }) => {
+  const controlledInputWarnings: string[] = [];
+
+  page.on("console", (message) => {
+    if (message.type() === "error" && message.text().includes("A component is changing an uncontrolled input to be controlled")) {
+      controlledInputWarnings.push(message.text());
+    }
+  });
+
+  await page.goto("/uploads");
+  await page.getByRole("button", { name: /YouTube/ }).click();
+  await page.getByRole("button", { name: /Arquivo local/ }).click();
+
+  expect(controlledInputWarnings).toEqual([]);
+});
+
 test("detalhe envia modelo documental e contexto temporario", async ({ page }) => {
   let reportPayload: Record<string, unknown> | null = null;
 
