@@ -1,5 +1,6 @@
 import type { User, Workspace } from "@prisma/client";
 
+import { ADMIN_PLAN, isAdminEmail } from "@/lib/admin";
 import { getBillingPeriodStart, getPlanCreditLimit, type WorkspacePlan } from "@/lib/billing-plans";
 import { prisma } from "@/lib/prisma";
 
@@ -69,6 +70,7 @@ export async function ensureWorkspaceForUser(user: Pick<User, "id" | "email" | "
   const email = user.email || `${user.id}@modeloia.local`;
   const workspaceId = normalizeWorkspaceSlug(email);
   const ownerName = user.name || email;
+  const admin = isAdminEmail(email);
 
   const workspace = await prisma.workspace.upsert({
     where: { id: workspaceId },
@@ -78,14 +80,16 @@ export async function ensureWorkspaceForUser(user: Pick<User, "id" | "email" | "
       ownerName,
       ownerEmail: email,
       segment: "Operacoes documentais",
-      plan: "trial",
-      billingStatus: "trialing",
+      plan: admin ? ADMIN_PLAN : "trial",
+      billingStatus: admin ? "active" : "trialing",
       ownerId: user.id,
     },
     update: {
       ownerId: user.id,
       ownerName,
       ownerEmail: email,
+      // Mantem o admin sem limite mesmo se o workspace ja existir como trial.
+      ...(admin ? { plan: ADMIN_PLAN, billingStatus: "active" } : {}),
     },
   });
 

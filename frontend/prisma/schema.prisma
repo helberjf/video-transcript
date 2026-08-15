@@ -137,6 +137,36 @@ model UsageEvent {
   @@map("usage_events")
 }
 
+model InviteCode {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  note        String?
+  plan        String    @default("trial")
+  maxUses     Int       @default(1) @map("max_uses")
+  uses        Int       @default(0)
+  expiresAt   DateTime? @map("expires_at")
+  disabledAt  DateTime? @map("disabled_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  redemptions InviteRedemption[]
+
+  @@map("invite_codes")
+}
+
+model InviteRedemption {
+  id           String   @id @default(cuid())
+  inviteCodeId String   @map("invite_code_id")
+  email        String
+  userId       String?  @map("user_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  inviteCode InviteCode @relation(fields: [inviteCodeId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteCodeId, email])
+  @@index([email])
+  @@map("invite_redemptions")
+}
+
 model StripeEvent {
   id          String   @id
   type        String

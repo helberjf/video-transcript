@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 
+import { isEmailAllowed } from "@/lib/invite-codes";
 import { prisma } from "@/lib/prisma";
 import { ensureWorkspaceForUser, getWorkspaceForUser } from "@/lib/workspace-db";
 
@@ -34,6 +35,9 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      // Quem entrou por convite com email/senha pode usar o mesmo email no
+      // Google. O Google verifica o email, entao a vinculacao e segura aqui.
+      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: "credentials",
@@ -58,6 +62,14 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    // Login social so entra para quem ja foi convidado (ou para o admin).
+    // Sem isso, qualquer conta Google entraria e gastaria a chave de IA do dono.
+    async signIn({ user, account }) {
+      if (account?.provider !== "google") {
+        return true;
+      }
+      return isEmailAllowed(user.email);
+    },
     async jwt({ token, user }) {
       if (user?.id) {
         token.id = user.id;

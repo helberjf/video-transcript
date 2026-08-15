@@ -59,6 +59,26 @@ def test_trial_limit_is_configurable(session, monkeypatch: pytest.MonkeyPatch) -
     assert usage_service.current_month_credits(session, "web-workspace") == 45
 
 
+def test_admin_plan_from_login_token_removes_the_limit(session, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(usage_service, "get_settings", _web_settings)
+
+    # Sem sincronia o backend trata o admin como trial e bloqueia em 20.
+    usage_service.sync_workspace_plan(session, "admin-workspace", "enterprise")
+    usage_service.consume_credits(session, "admin-workspace", "media_processing_duration", 90)
+
+    assert usage_service.plan_credit_limit("enterprise") is None
+    assert usage_service.current_month_credits(session, "admin-workspace") == 90
+
+
+def test_unknown_plan_from_token_is_ignored(session, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(usage_service, "get_settings", _web_settings)
+    usage_service.ensure_workspace(session, "web-workspace")
+
+    usage_service.sync_workspace_plan(session, "web-workspace", "ilimitado-de-mentira")
+
+    assert usage_service.plan_credit_limit(session.get(Workspace, "web-workspace").plan) == 20
+
+
 def test_desktop_mode_records_usage_without_blocking(session, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         usage_service,

@@ -4,9 +4,12 @@ from inspect import signature
 from typing import Annotated
 
 import jwt
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.database import get_db
+from app.services.usage_service import sync_workspace_plan
 
 
 DEFAULT_WORKSPACE_ID = "local-workspace"
@@ -24,7 +27,8 @@ def _backend_secret() -> str | None:
     return settings.backend_auth_secret or ("modeloia-dev-backend-secret" if settings.app_env == "development" else None)
 
 
-def _decode_workspace_from_authorization(authorization: str | None) -> str | None:
+def _decode_workspace_from_authorization(authorization: str | None) -> tuple[str, str | None] | None:
+    """Retorna (workspace_id, plano) do token emitido pelo frontend."""
     if not authorization or not authorization.lower().startswith("bearer "):
         return None
 
@@ -41,17 +45,25 @@ def _decode_workspace_from_authorization(authorization: str | None) -> str | Non
     workspace_id = payload.get("workspaceId")
     if not isinstance(workspace_id, str):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token sem workspace")
-    return normalize_workspace_id(workspace_id)
+
+    plan = payload.get("plan")
+    return normalize_workspace_id(workspace_id), plan if isinstance(plan, str) else None
 
 
 def get_workspace_id(
+    db: Annotated[Session, Depends(get_db)],
     x_workspace_id: Annotated[str | None, Header(alias="X-Workspace-Id")] = None,
     authorization: Annotated[str | None, Header(alias="Authorization")] = None,
 ) -> str:
     settings = get_settings()
-    token_workspace_id = _decode_workspace_from_authorization(authorization)
-    if token_workspace_id:
-        return token_workspace_id
+    decoded = _decode_workspace_from_authorization(authorization)
+    if decoded:
+        workspace_id, plan = decoded
+        # O plano vive no banco do frontend (Prisma). Sem esta sincronia o
+        # backend trataria todo mundo como trial, inclusive o admin.
+        if plan:
+            sync_workspace_plan(db, workspace_id, plan)
+        return workspace_id
 
     if settings.backend_auth_required:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login necessario para acessar este workspace")

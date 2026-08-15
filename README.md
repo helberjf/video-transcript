@@ -83,6 +83,38 @@ npm run test:e2e
 
 The `electron/` package bundles the Next.js frontend and the FastAPI backend into a Windows desktop app. See `docs/` for the build/installer steps.
 
+## Access model: desktop vs web
+
+| | Desktop (Electron) | Web |
+| --- | --- | --- |
+| Login | none | required (password or Google) |
+| Sign-up | n/a | invite code only |
+| Credit limit | none — the AI key belongs to the user | free plan, `TRIAL_CREDIT_LIMIT` (default 20 credits ≈ 1 credit per minute of media) |
+
+Desktop mode is detected from `APP_ENV=desktop` (sent by Electron) or `DESKTOP_MODE=true`.
+
+On the web the AI key belongs to the operator, so accounts are gated:
+
+```bash
+cd frontend && npm run invite:create -- --uses 5 --dias 30
+```
+
+Share the generated code; the person signs up at `/cadastro`. `npm run invite:create -- --listar`
+shows how many uses are left. Google sign-in only accepts emails that already
+redeemed an invite (or an admin email), so enabling it does not open the door.
+
+Admin accounts listed in `ADMIN_EMAILS` skip both the invite and the credit
+limit — the real ceiling is the quota on the operator's own AI key. Create one
+with `ADMIN_EMAIL`/`ADMIN_PASSWORD` set in the environment:
+
+```bash
+cd frontend && npm run admin:create
+```
+
+Deploying the web version requires `BACKEND_AUTH_SECRET` set to the same value
+on the frontend and the backend; outside `APP_ENV=development` there is no
+fallback secret and authenticated requests fail without it.
+
 ## Notes
 
 - The project is structured as a commercial-ready SaaS (auth, billing, email) while still being runnable fully locally.

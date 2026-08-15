@@ -56,6 +56,21 @@ def ensure_workspace(db: Session, workspace_id: str) -> Workspace:
     return workspace
 
 
+def sync_workspace_plan(db: Session, workspace_id: str, plan: str) -> None:
+    """Replica no backend o plano que o frontend guarda no Prisma."""
+    if plan not in PLAN_CREDIT_LIMITS:
+        return
+    if not hasattr(db, "get") or not hasattr(db, "add"):
+        return
+
+    workspace = ensure_workspace(db, workspace_id)
+    if workspace.plan == plan:
+        return
+
+    workspace.plan = plan
+    db.commit()
+
+
 def current_month_credits(db: Session, workspace_id: str) -> int:
     total = db.scalar(
         select(func.coalesce(func.sum(UsageEvent.credits), 0)).where(
