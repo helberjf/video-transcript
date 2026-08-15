@@ -9,7 +9,7 @@ import { useWorkspace } from "@/hooks/use-workspace";
 
 const navigation = [
   { href: "/", label: "Inicio", description: "Acoes rapidas" },
-  { href: "/uploads", label: "Relatorios", description: "Audio e video" },
+  { href: "/uploads", label: "Processamentos/Relatórios", description: "Audio e video" },
   { href: "/history", label: "Historico", description: "Processamentos" },
   { href: "/templates", label: "Modelos", description: "Documentos base" },
   { href: "/forms", label: "Formularios", description: "Preenchimento" },

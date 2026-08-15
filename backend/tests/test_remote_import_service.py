@@ -83,9 +83,20 @@ def test_build_ydl_options_for_youtube_ignores_cookie_configuration(
 
     options = upload_service._build_ydl_options("youtube", "remote.%(ext)s")
 
-    assert options["format"] == "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b"
+    assert options["format"] == "ba[ext=m4a]/ba/b[ext=mp4]/b"
+    assert set(options["js_runtimes"]) == set(upload_service.JS_RUNTIME_CANDIDATES)
     assert "cookiefile" not in options
     assert "cookiesfrombrowser" not in options
+
+
+def test_js_runtime_can_be_pinned_by_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    node_binary = tmp_path / "node.exe"
+    node_binary.write_bytes(b"")
+    monkeypatch.setenv("YTDLP_JS_RUNTIME", f"node:{node_binary}")
+
+    runtimes = upload_service._resolve_js_runtimes()
+
+    assert runtimes["node"] == {"path": str(node_binary)}
 
 
 def test_build_ydl_options_for_instagram_uses_configured_cookie_file(
@@ -104,7 +115,7 @@ def test_build_ydl_options_for_instagram_uses_configured_cookie_file(
     assert "cookiesfrombrowser" not in options
 
 
-def test_youtube_bot_block_retries_with_android_client_without_cookies(
+def test_youtube_bot_block_retries_with_alternate_player_client_without_cookies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict[str, object]] = []
@@ -140,9 +151,63 @@ def test_youtube_bot_block_retries_with_android_client_without_cookies(
     assert len(calls) == 3
     assert calls[1]["nocheckcertificate"] is True
     assert calls[2]["nocheckcertificate"] is True
-    assert calls[2]["extractor_args"] == {"youtube": {"player_client": ["android"]}}
+    assert calls[2]["extractor_args"] == {
+        "youtube": {"player_client": [upload_service.YOUTUBE_FALLBACK_PLAYER_CLIENTS[0]]}
+    }
     assert all("cookiefile" not in options for options in calls)
     assert all("cookiesfrombrowser" not in options for options in calls)
+
+
+def test_youtube_forbidden_download_walks_through_every_player_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+    cleanups: list[int] = []
+    working_client = upload_service.YOUTUBE_FALLBACK_PLAYER_CLIENTS[2]
+
+    class FakeYoutubeDL:
+        def __init__(self, options) -> None:
+            self.options = options
+            calls.append(options)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extract_info(self, url: str, download: bool = False):
+            player_client = (self.options.get("extractor_args") or {}).get("youtube", {}).get("player_client")
+            if player_client == [working_client]:
+                return {"id": "abc123", "title": "Video de teste"}
+            raise RuntimeError("unable to download video data: HTTP Error 403: Forbidden")
+
+    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
+
+    result = upload_service.extract_remote_info_with_ssl_fallback(
+        "youtube",
+        "https://youtu.be/abc123",
+        upload_service._build_ydl_options("youtube", "remote.%(ext)s"),
+        download=True,
+        before_retry=lambda: cleanups.append(len(calls)),
+    )
+
+    assert result == {"id": "abc123", "title": "Video de teste"}
+    assert [
+        (options.get("extractor_args") or {}).get("youtube", {}).get("player_client") for options in calls
+    ] == [None, *[[client] for client in upload_service.YOUTUBE_FALLBACK_PLAYER_CLIENTS[:3]]]
+    assert cleanups == [1, 2, 3]
+
+
+def test_youtube_forbidden_error_message_explains_next_steps() -> None:
+    message = upload_service._remote_download_error_message(
+        "youtube",
+        RuntimeError("ERROR: unable to download video data: HTTP Error 403: Forbidden"),
+    )
+
+    assert "Cookies do Instagram" not in message
+    assert "HTTP 403" in message
+    assert "yt-dlp" in message
 
 
 def test_youtube_login_error_message_does_not_request_instagram_cookies() -> None:

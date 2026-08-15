@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.commercial import UsageEvent, Workspace
 
 
@@ -77,6 +78,8 @@ def consume_credits(
 
     workspace = ensure_workspace(db, workspace_id)
     limit = PLAN_CREDIT_LIMITS.get(workspace.plan, PLAN_CREDIT_LIMITS["trial"])
+    if not get_settings().credit_limits_enabled:
+        limit = None
     used = current_month_credits(db, workspace_id)
 
     if limit is not None and used + credits > limit:

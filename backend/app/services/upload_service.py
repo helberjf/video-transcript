@@ -1,6 +1,8 @@
 import mimetypes
 import os
 import re
+import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -74,12 +76,54 @@ def _resolve_cookies_file() -> str | None:
     return None
 
 
-def _with_youtube_android_client(ydl_options: dict[str, Any]) -> dict[str, Any]:
+# O cliente "android" entrega URLs que o YouTube responde com HTTP 403, entao a lista
+# comeca pelo "android_vr", que hoje e o mais confiavel para acesso anonimo.
+YOUTUBE_FALLBACK_PLAYER_CLIENTS: tuple[str, ...] = ("android_vr", "tv", "web_safari", "mweb", "ios")
+
+
+def _with_youtube_player_client(ydl_options: dict[str, Any], player_client: str) -> dict[str, Any]:
     extractor_args = dict(ydl_options.get("extractor_args") or {})
     youtube_args = dict(extractor_args.get("youtube") or {})
-    youtube_args["player_client"] = ["android"]
+    youtube_args["player_client"] = [player_client]
     extractor_args["youtube"] = youtube_args
     return {**ydl_options, "nocheckcertificate": True, "extractor_args": extractor_args}
+
+
+JS_RUNTIME_CANDIDATES: tuple[str, ...] = ("deno", "node", "bun", "quickjs")
+
+WINDOWS_NODE_FALLBACK_PATHS: tuple[str, ...] = (
+    r"C:\Program Files\nodejs\node.exe",
+    r"C:\Program Files (x86)\nodejs\node.exe",
+)
+
+
+def _resolve_js_runtimes() -> dict[str, dict[str, Any]]:
+    """O YouTube exige um runtime JS para assinar as URLs; sem ele o download volta HTTP 403."""
+    runtimes: dict[str, dict[str, Any]] = {}
+
+    configured = os.environ.get("YTDLP_JS_RUNTIME")
+    if configured:
+        name, _, configured_path = configured.partition(":")
+        name = name.strip().lower()
+        if name in JS_RUNTIME_CANDIDATES:
+            runtimes[name] = {"path": configured_path.strip()} if configured_path.strip() else {}
+
+    for name in JS_RUNTIME_CANDIDATES:
+        if name in runtimes:
+            continue
+        binary = shutil.which(name)
+        if binary:
+            runtimes[name] = {"path": binary}
+        else:
+            runtimes[name] = {}
+
+    if not runtimes.get("node", {}).get("path"):
+        for candidate in WINDOWS_NODE_FALLBACK_PATHS:
+            if Path(candidate).exists():
+                runtimes["node"] = {"path": candidate}
+                break
+
+    return runtimes
 
 
 def _build_ydl_options(source: RemoteMediaSource, output_template: str) -> dict[str, Any]:
@@ -89,10 +133,13 @@ def _build_ydl_options(source: RemoteMediaSource, output_template: str) -> dict[
         "noplaylist": True,
         "outtmpl": output_template,
         "windowsfilenames": True,
+        "js_runtimes": _resolve_js_runtimes(),
     }
 
     if source == "youtube":
-        ydl_options["format"] = "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b"
+        # O pipeline so usa o audio (ffmpeg descarta o video), entao baixar apenas a
+        # faixa de audio evita os streams de video que o YouTube costuma barrar com 403.
+        ydl_options["format"] = "ba[ext=m4a]/ba/b[ext=mp4]/b"
         ydl_options["merge_output_format"] = "mp4"
     else:
         ydl_options["format"] = "best[ext=mp4]/best"
@@ -171,6 +218,29 @@ def _remote_download_error_message(source: RemoteMediaSource, error: Exception) 
     if "requested format is not available" in lower_message:
         return f"{source_label} nao disponibilizou um formato compativel para download. Atualize o yt-dlp ou tente outro link."
 
+    if "http error 403" in lower_message or "unable to download video data" in lower_message:
+        if source == "youtube":
+            return (
+                "O YouTube recusou a entrega do video (HTTP 403) em todos os clientes anonimos testados. "
+                "Atualize o yt-dlp (pip install -U yt-dlp), tente novamente em alguns minutos ou envie o arquivo local."
+            )
+        return (
+            f"{source_label} recusou a entrega da midia (HTTP 403). "
+            "Atualize o yt-dlp, revise os cookies em Configuracoes e tente novamente."
+        )
+
+    if "drm protected" in lower_message:
+        return (
+            f"{source_label} entregou apenas faixas protegidas por DRM para este link. "
+            "Tente novamente em alguns minutos ou envie o audio/video como arquivo local."
+        )
+
+    if "http error 429" in lower_message or "too many requests" in lower_message:
+        return (
+            f"{source_label} limitou as requisicoes deste IP (HTTP 429). "
+            "Aguarde alguns minutos antes de tentar o proximo download."
+        )
+
     browser_cookie_failures = (
         "could not copy chrome cookie database",
         "could not find firefox cookies database",
@@ -221,14 +291,25 @@ def _is_ssl_certificate_error(error: Exception) -> bool:
     )
 
 
-def _is_youtube_anonymous_access_error(error: Exception) -> bool:
+YOUTUBE_RETRYABLE_ERROR_FRAGMENTS: tuple[str, ...] = (
+    "sign in to confirm",
+    "not a bot",
+    "use --cookies-from-browser",
+    "requested format is not available",
+    "http error 403",
+    "http error 429",
+    "unable to download video data",
+    "unable to download webpage",
+    "failed to extract any player response",
+    "drm protected",
+    "only images are available",
+)
+
+
+def _is_youtube_retryable_error(error: Exception) -> bool:
+    """Erros em que outro player client do YouTube costuma resolver o download."""
     lower_message = str(error).lower()
-    return (
-        "sign in to confirm" in lower_message
-        or "not a bot" in lower_message
-        or "use --cookies-from-browser" in lower_message
-        or "requested format is not available" in lower_message
-    )
+    return any(fragment in lower_message for fragment in YOUTUBE_RETRYABLE_ERROR_FRAGMENTS)
 
 
 def extract_remote_info_with_ssl_fallback(
@@ -237,6 +318,7 @@ def extract_remote_info_with_ssl_fallback(
     ydl_options: dict[str, Any],
     *,
     download: bool,
+    before_retry: Callable[[], None] | None = None,
 ) -> dict[str, Any] | None:
     try:
         import yt_dlp
@@ -246,26 +328,30 @@ def extract_remote_info_with_ssl_fallback(
             detail="yt-dlp nao esta instalado no backend",
         ) from exc
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_options) as downloader:
+    def _attempt(options: dict[str, Any], *, first: bool = False) -> dict[str, Any] | None:
+        if not first and before_retry is not None:
+            before_retry()
+        with yt_dlp.YoutubeDL(options) as downloader:
             return downloader.extract_info(url, download=download)
+
+    try:
+        return _attempt(ydl_options, first=True)
     except Exception as exc:
         last_error = exc
         if _is_ssl_certificate_error(exc) and not ydl_options.get("nocheckcertificate"):
-            retry_options = {**ydl_options, "nocheckcertificate": True}
             try:
-                with yt_dlp.YoutubeDL(retry_options) as downloader:
-                    return downloader.extract_info(url, download=download)
+                return _attempt({**ydl_options, "nocheckcertificate": True})
             except Exception as retry_exc:
                 last_error = retry_exc
 
-        if source == "youtube" and _is_youtube_anonymous_access_error(last_error):
-            android_options = _with_youtube_android_client(ydl_options)
-            try:
-                with yt_dlp.YoutubeDL(android_options) as downloader:
-                    return downloader.extract_info(url, download=download)
-            except Exception as android_exc:
-                raise android_exc from last_error
+        if source == "youtube" and _is_youtube_retryable_error(last_error):
+            for player_client in YOUTUBE_FALLBACK_PLAYER_CLIENTS:
+                try:
+                    return _attempt(_with_youtube_player_client(ydl_options, player_client))
+                except Exception as client_exc:
+                    if not _is_youtube_retryable_error(client_exc):
+                        raise client_exc from last_error
+                    last_error = client_exc
 
         raise last_error from exc
 
@@ -283,6 +369,7 @@ def create_upload_from_remote_url(db: Session, source: RemoteMediaSource, url: s
             normalized_url,
             _build_ydl_options(source, output_template),
             download=True,
+            before_retry=lambda: _cleanup_remote_downloads(download_prefix),
         )
 
         downloaded_path = _find_downloaded_media_path(download_prefix)

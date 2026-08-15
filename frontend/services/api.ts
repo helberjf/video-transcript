@@ -101,7 +101,7 @@ function parseErrorMessage(data: unknown): string {
     return data.detail;
   }
 
-  return "Falha na comunicaÃ§Ã£o com o backend";
+  return "Falha na comunicação com o backend";
 }
 
 function parseFilenameFromDisposition(headerValue: string | null): string | null {

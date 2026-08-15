@@ -40,6 +40,9 @@ class Settings(BaseSettings):
 
     max_upload_mb: int = 500
     auto_cleanup_temp_files: bool = True
+    # Em instalacoes locais/desktop as chaves de IA sao do proprio usuario, entao o
+    # limite mensal de creditos do plano SaaS pode ser desligado por .env.
+    credit_limits_enabled: bool = True
     default_language: str = "pt-BR"
     whisper_model: str = "medium"
     openai_api_key: str | None = None

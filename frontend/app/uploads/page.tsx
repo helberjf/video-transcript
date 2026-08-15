@@ -339,7 +339,7 @@ export default function UploadPage() {
         return;
       }
       if (!documentModelName.trim() || !documentModelDescription.trim() || !documentModelDefaultContext.trim()) {
-        setDocumentModelError("Preencha nome, descriÃ§Ã£o e contexto padrÃ£o.");
+        setDocumentModelError("Preencha nome, descrição e contexto padrão.");
         return;
       }
 
@@ -466,7 +466,7 @@ export default function UploadPage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium">DescriÃ§Ã£o</label>
+                    <label className="mb-2 block text-sm font-medium">Descrição</label>
                     <textarea
                       className="field min-h-[96px]"
                       value={documentModelDescription}
@@ -475,17 +475,17 @@ export default function UploadPage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium">Contexto padrÃ£o</label>
+                    <label className="mb-2 block text-sm font-medium">Contexto padrão</label>
                     <textarea
                       className="field min-h-[120px]"
                       value={documentModelDefaultContext}
                       onChange={(event) => setDocumentModelDefaultContext(event.target.value)}
-                      placeholder="Ex.: Use linguagem formal, destaque datas, preserve ordem de seÃ§Ãµes..."
+                      placeholder="Ex.: Use linguagem formal, destaque datas, preserve ordem de seções..."
                     />
                   </div>
 
                   <p className="text-sm text-slate">
-                    O sistema vai extrair o texto do arquivo, salvar o documento original e manter esse contexto como padrÃ£o do modelo.
+                    O sistema vai extrair o texto do arquivo, salvar o documento original e manter esse contexto como padrão do modelo.
                   </p>
 
                   {documentModelError ? <p className="rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{documentModelError}</p> : null}
@@ -578,8 +578,8 @@ export default function UploadPage() {
                   <div className="rounded-[1.4rem] border border-white/10 bg-midnight/35 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-ink">Contexto temporÃ¡rio</p>
-                          <p className="mt-1 text-sm text-slate">Use esta instruÃ§Ã£o apenas para o relatÃ³rio desta execuÃ§Ã£o.</p>
+                          <p className="text-sm font-semibold text-ink">Contexto temporário</p>
+                          <p className="mt-1 text-sm text-slate">Use esta instrução apenas para o relatório desta execução.</p>
                         </div>
                         <label className="flex items-center gap-2 text-sm text-slate">
                           <input
@@ -600,7 +600,7 @@ export default function UploadPage() {
                           className="field mt-4 min-h-[120px]"
                           value={reportContext}
                           onChange={(event) => setReportContext(event.target.value)}
-                          placeholder="Ex.: destacar pendÃªncias, tom formal, foco em decisÃµes e prazos..."
+                          placeholder="Ex.: destacar pendências, tom formal, foco em decisões e prazos..."
                         />
                       ) : null}
                     </div>
