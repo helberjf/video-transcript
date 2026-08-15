@@ -20,6 +20,17 @@ PLAN_CREDIT_LIMITS: dict[str, int | None] = {
 }
 
 
+def plan_credit_limit(plan: str | None) -> int | None:
+    """Limite mensal do plano, ou None quando nao ha limite (desktop/enterprise)."""
+    settings = get_settings()
+    if not settings.credit_limits_enabled:
+        return None
+
+    if plan == "trial" or plan not in PLAN_CREDIT_LIMITS:
+        return settings.trial_credit_limit
+    return PLAN_CREDIT_LIMITS[plan]
+
+
 def _month_start() -> datetime:
     now = datetime.now(timezone.utc)
     return datetime(now.year, now.month, 1, tzinfo=timezone.utc).replace(tzinfo=None)
@@ -77,12 +88,18 @@ def consume_credits(
             return
 
     workspace = ensure_workspace(db, workspace_id)
-    limit = PLAN_CREDIT_LIMITS.get(workspace.plan, PLAN_CREDIT_LIMITS["trial"])
-    if not get_settings().credit_limits_enabled:
-        limit = None
+    limit = plan_credit_limit(workspace.plan)
     used = current_month_credits(db, workspace_id)
 
     if limit is not None and used + credits > limit:
+        if credits > limit:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail=(
+                    f"Esta midia precisa de {credits} creditos e o plano atual libera {limit} por mes. "
+                    "Envie um arquivo mais curto ou atualize o plano."
+                ),
+            )
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=f"Limite mensal de creditos excedido ({used}/{limit}). Atualize o plano para continuar.",

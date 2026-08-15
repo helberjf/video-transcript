@@ -40,9 +40,11 @@ class Settings(BaseSettings):
 
     max_upload_mb: int = 500
     auto_cleanup_temp_files: bool = True
-    # Em instalacoes locais/desktop as chaves de IA sao do proprio usuario, entao o
-    # limite mensal de creditos do plano SaaS pode ser desligado por .env.
-    credit_limits_enabled: bool = True
+    # No modo desktop as chaves de IA sao do proprio usuario, entao nao existe limite
+    # de plano. Quando nao definido, e inferido de APP_ENV=desktop (Electron).
+    desktop_mode: bool | None = None
+    # Creditos/mes do plano gratuito na web. 1 credito ~ 1 minuto de midia.
+    trial_credit_limit: int = 20
     default_language: str = "pt-BR"
     whisper_model: str = "medium"
     openai_api_key: str | None = None
@@ -59,6 +61,17 @@ class Settings(BaseSettings):
     provider_retries: int = 2
 
     model_config = SettingsConfigDict(env_file=_settings_env_files(), env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
+
+    @property
+    def is_desktop(self) -> bool:
+        if self.desktop_mode is not None:
+            return self.desktop_mode
+        return self.app_env.strip().lower() == "desktop"
+
+    @property
+    def credit_limits_enabled(self) -> bool:
+        """So a versao web cobra creditos: no desktop a chave de IA e do usuario."""
+        return not self.is_desktop
 
     @property
     def max_upload_bytes(self) -> int:

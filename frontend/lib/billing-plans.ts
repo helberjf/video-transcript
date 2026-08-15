@@ -19,7 +19,12 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     creditsPerMonth: 20,
     cta: "Comecar gratis",
     description: "Para validar o fluxo completo com poucos documentos.",
-    features: ["20 creditos por mes", "Login Google", "Modelos e formularios", "Exportacao Word/PDF"],
+    features: [
+      "20 creditos por mes (~2 videos de 10 minutos)",
+      "Login Google",
+      "Modelos e formularios",
+      "Exportacao Word/PDF",
+    ],
   },
   {
     id: "pro",

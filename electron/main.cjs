@@ -258,6 +258,7 @@ function startBackend(paths) {
     APP_PORT: String(BACKEND_PORT),
     APP_CONFIG_DIR: paths.configDir,
     APP_ENV: "desktop",
+    DESKTOP_MODE: "true",
     BACKEND_AUTH_REQUIRED: "false",
     CORS_ORIGINS: [
       `http://127.0.0.1:${FRONTEND_PORT}`,
