@@ -23,14 +23,21 @@ export function normalizeInviteCode(value: unknown): string {
   return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-export function generateInviteCode(groups = 3, groupSize = 4): string {
-  const bytes = randomBytes(groups * groupSize);
-  const chars = Array.from(bytes, (byte) => CODE_ALPHABET[byte % CODE_ALPHABET.length]);
-  const parts: string[] = [];
-  for (let index = 0; index < groups; index += 1) {
-    parts.push(chars.slice(index * groupSize, (index + 1) * groupSize).join(""));
-  }
-  return parts.join("-");
+/**
+ * Gera o codigo em forma canonica (so letras e numeros). Hifens e espacos sao
+ * cosmeticos: `normalizeInviteCode` remove qualquer separador, entao o que a
+ * pessoa digitar casa com o que esta no banco.
+ */
+export function generateInviteCode(length = 12): string {
+  const bytes = randomBytes(length);
+  return Array.from(bytes, (byte) => CODE_ALPHABET[byte % CODE_ALPHABET.length]).join("");
+}
+
+/** Versao legivel para mostrar/enviar: XXXX-XXXX-XXXX. */
+export function formatInviteCode(code: string, groupSize = 4): string {
+  const normalized = normalizeInviteCode(code);
+  const groups = normalized.match(new RegExp(`.{1,${groupSize}}`, "g")) ?? [normalized];
+  return groups.join("-");
 }
 
 /** Convite valido, ainda dentro do prazo e com uso disponivel. */

@@ -15,7 +15,7 @@ loadDotenv({ path: "../.env" });
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-import { generateInviteCode } from "../lib/invite-codes";
+import { formatInviteCode, generateInviteCode } from "../lib/invite-codes";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL ?? "postgresql://user:pass@localhost:5432/modeloia",
@@ -49,7 +49,9 @@ async function list() {
           ? "esgotado"
           : "ativo";
     const validade = invite.expiresAt ? invite.expiresAt.toISOString().slice(0, 10) : "sem prazo";
-    console.log(`${invite.code}  ${invite.uses}/${invite.maxUses}  ${status.padEnd(11)} ${validade}  ${invite.note ?? ""}`);
+    console.log(
+      `${formatInviteCode(invite.code)}  ${invite.uses}/${invite.maxUses}  ${status.padEnd(11)} ${validade}  ${invite.note ?? ""}`,
+    );
   }
 }
 
@@ -69,7 +71,7 @@ async function main() {
     const invite = await prisma.inviteCode.create({
       data: { code: generateInviteCode(), maxUses, expiresAt, note: note ?? null },
     });
-    console.log(invite.code);
+    console.log(formatInviteCode(invite.code));
   }
 
   console.log(
