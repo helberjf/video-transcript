@@ -1,6 +1,7 @@
 flask==3.0.0
 flask-cors==4.0.0
 flask-limiter==3.5.0
+truststore==0.10.4
 requests==2.31.0
 yt-dlp==2026.3.17
 openai-whisper==20231117

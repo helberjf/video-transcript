@@ -1,7 +1,11 @@
 import sys
 
-import uvicorn
-from app.core.config import get_settings
+from app.core.tls import install_system_trust_store
+
+install_system_trust_store()
+
+import uvicorn  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
 
 
 def main() -> None:

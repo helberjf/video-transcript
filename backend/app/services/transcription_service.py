@@ -173,6 +173,14 @@ def _transcription_provider_order(
     return [normalized_preference, *[provider for provider in configured_order if provider != normalized_preference]]
 
 
+def _log_provider_failure(provider: str, error: Exception) -> None:
+    """A troca silenciosa de provedor escondia erros de rede, chave e TLS."""
+    detail = str(error).strip() or error.__class__.__name__
+    message = f"[transcricao] {provider} falhou, tentando o proximo provedor: {detail[:300]}"
+    logger.warning(message)
+    print(message, flush=True)
+
+
 def transcribe_audio(
     db: Session,
     audio_path: str | Path,
@@ -197,7 +205,8 @@ def transcribe_audio(
             if isinstance(openai_key, str) and openai_key:
                 try:
                     return _run_with_retries(lambda: _transcribe_openai(target_path, language, openai_key), retries)
-                except Exception:
+                except Exception as exc:
+                    _log_provider_failure("openai", exc)
                     continue
 
         if provider == "gemini":
@@ -205,7 +214,8 @@ def transcribe_audio(
             if isinstance(gemini_key, str) and gemini_key:
                 try:
                     return _run_with_retries(lambda: _transcribe_gemini(target_path, language, gemini_key), retries)
-                except Exception:
+                except Exception as exc:
+                    _log_provider_failure("gemini", exc)
                     continue
 
         if provider == "whisper":

@@ -1,11 +1,16 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from app.core.tls import install_system_trust_store
 
-from app.api.router import api_router
-from app.core.config import get_settings
-from app.core.database import Base, SessionLocal, engine, run_startup_migrations
-from app.models import DocumentModel
-from app.services.seed_service import seed_report_templates
+# Antes de qualquer import que possa abrir conexao HTTPS.
+install_system_trust_store()
+
+from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+
+from app.api.router import api_router  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
+from app.core.database import Base, SessionLocal, engine, run_startup_migrations  # noqa: E402
+from app.models import DocumentModel  # noqa: E402
+from app.services.seed_service import seed_report_templates  # noqa: E402
 
 
 settings = get_settings()

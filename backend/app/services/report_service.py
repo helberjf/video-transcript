@@ -1,3 +1,4 @@
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +16,9 @@ from app.repositories.upload_repository import UploadRepository
 from app.schemas.report import GenerateReportRequest, ReportExportExtension
 from app.services.settings_service import get_effective_provider_settings
 from app.services.usage_service import consume_credits
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -390,7 +394,13 @@ def generate_report(db: Session, payload: GenerateReportRequest, workspace_id: s
             if provider == "local":
                 content, engine = _generate_local_fallback(payload.title, upload.transcription_text, payload.custom_request)
                 break
-        except Exception:
+        except Exception as exc:
+            # Sem este log, uma falha de rede/TLS/chave virava um relatorio
+            # gerado pelo modelo local sem nenhum aviso ao usuario.
+            detail = str(exc).strip() or exc.__class__.__name__
+            message = f"[relatorio] {provider} falhou, tentando o proximo provedor: {detail[:300]}"
+            logger.warning(message)
+            print(message, flush=True)
             continue
 
     if content is None:
