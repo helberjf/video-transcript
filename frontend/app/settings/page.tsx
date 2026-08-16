@@ -6,12 +6,15 @@ import { SectionHeader } from "@/components/section-header";
 import { LANGUAGE_OPTIONS, TRANSCRIPTION_PROVIDER_LABELS, WHISPER_MODEL_OPTIONS } from "@/lib/transcription-options";
 import { formatBytes } from "@/lib/utils";
 import {
+  cancelBrowserLogin,
   cancelInstagramLogin,
   deleteCookies,
+  getBrowserLoginStatus,
   getCookiesStatus,
   getInstagramLoginStatus,
   getSettings,
   getTemplates,
+  startBrowserLogin,
   startInstagramLogin,
   updateSettings,
   uploadCookiesFile,
@@ -122,6 +125,12 @@ export default function SettingsPage() {
     cookies: null,
   });
   const instagramPollRef = useRef<number | null>(null);
+  const [youtubeLogin, setYoutubeLogin] = useState<InstagramLoginStatus>({
+    state: "idle",
+    message: null,
+    cookies: null,
+  });
+  const youtubePollRef = useRef<number | null>(null);
 
   useEffect(() => {
     void Promise.all([getSettings(), getTemplates(), getCookiesStatus(), getInstagramLoginStatus()])
@@ -232,6 +241,64 @@ export default function SettingsPage() {
       }
     } catch (err) {
       setCookiesError(err instanceof Error ? err.message : "Falha ao cancelar login");
+    }
+  };
+
+  const stopYoutubePolling = () => {
+    if (youtubePollRef.current !== null) {
+      window.clearInterval(youtubePollRef.current);
+      youtubePollRef.current = null;
+    }
+  };
+
+  const startYoutubePolling = () => {
+    stopYoutubePolling();
+    youtubePollRef.current = window.setInterval(() => {
+      void getBrowserLoginStatus("youtube")
+        .then((next) => {
+          setYoutubeLogin(next);
+          if (next.cookies) {
+            setCookiesStatus(next.cookies);
+          }
+          if (!isLoginInProgress(next.state)) {
+            stopYoutubePolling();
+            if (next.state === "completed") {
+              setCookiesMessage("Cookies do YouTube salvos pelo navegador controlado.");
+              void getCookiesStatus().then(setCookiesStatus).catch(() => undefined);
+            }
+          }
+        })
+        .catch(() => undefined);
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => stopYoutubePolling();
+  }, []);
+
+  const handleStartYoutubeLogin = async () => {
+    setCookiesError(null);
+    setCookiesMessage(null);
+    try {
+      const status = await startBrowserLogin("youtube");
+      setYoutubeLogin(status);
+      if (isLoginInProgress(status.state)) {
+        startYoutubePolling();
+      }
+    } catch (err) {
+      setCookiesError(err instanceof Error ? err.message : "Falha ao abrir o navegador");
+    }
+  };
+
+  const handleCancelYoutubeLogin = async () => {
+    try {
+      const status = await cancelBrowserLogin("youtube");
+      setYoutubeLogin(status);
+      if (!isLoginInProgress(status.state)) {
+        stopYoutubePolling();
+      }
+    } catch (err) {
+      setCookiesError(err instanceof Error ? err.message : "Falha ao cancelar verificacao");
     }
   };
 
@@ -493,6 +560,44 @@ export default function SettingsPage() {
                   }`}
                 >
                   {instagramLogin.message ?? INSTAGRAM_LOGIN_LABELS[instagramLogin.state]}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-sand/30 bg-sand/5 p-4">
+              <p className="text-sm font-semibold text-ink">Verificacao do YouTube</p>
+              <p className="mt-1 text-xs leading-5 text-slate">
+                Use quando o download parar com &quot;confirme que voce nao e um robo&quot;. O app abre uma janela do
+                Chromium em youtube.com: conclua a verificacao (e faca login, se quiser) e os cookies sao capturados.
+                Feche a janela quando terminar.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                {!isLoginInProgress(youtubeLogin.state) ? (
+                  <button
+                    type="button"
+                    className="button-primary"
+                    disabled={cookiesBusy}
+                    onClick={() => void handleStartYoutubeLogin()}
+                  >
+                    Abrir YouTube e confirmar
+                  </button>
+                ) : (
+                  <button type="button" className="button-secondary" onClick={() => void handleCancelYoutubeLogin()}>
+                    Cancelar verificacao
+                  </button>
+                )}
+              </div>
+              {youtubeLogin.state !== "idle" ? (
+                <p
+                  className={`mt-3 rounded-xl px-3 py-2 text-xs ${
+                    youtubeLogin.state === "completed"
+                      ? "bg-emerald-500/10 text-emerald-200"
+                      : youtubeLogin.state === "error"
+                        ? "bg-ember/10 text-ember"
+                        : "bg-white/[0.04] text-slate"
+                  }`}
+                >
+                  {youtubeLogin.message ?? INSTAGRAM_LOGIN_LABELS[youtubeLogin.state]}
                 </p>
               ) : null}
             </div>

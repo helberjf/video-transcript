@@ -12,8 +12,16 @@ import {
   WHISPER_MODEL_OPTIONS,
 } from "@/lib/transcription-options";
 import { formatBytes, formatDuration } from "@/lib/utils";
-import { createDocumentModel, getSettings, importRemoteMedia, startProcessing, uploadFile } from "@/services/api";
-import type { RemoteMediaSource, TranscriptionProvider } from "@/types/api";
+import {
+  createDocumentModel,
+  getBrowserLoginStatus,
+  getSettings,
+  importRemoteMedia,
+  startBrowserLogin,
+  startProcessing,
+  uploadFile,
+} from "@/services/api";
+import type { InstagramLoginState, RemoteMediaSource, TranscriptionProvider } from "@/types/api";
 import { appendWorkspaceActivity, savePendingReportContext, savePendingReportIntent } from "@/lib/workspace-store";
 
 const TAB_CONTENT = {
@@ -66,8 +74,15 @@ function isLoginRequiredError(message: string): boolean {
     lower.includes("cookies") ||
     lower.includes("login") ||
     lower.includes("rate-limit") ||
-    lower.includes("rate limit")
+    lower.includes("rate limit") ||
+    lower.includes("robo") ||
+    lower.includes("bloqueou o download") ||
+    lower.includes("nao liberou nenhuma faixa")
   );
+}
+
+function isLoginInProgress(state: InstagramLoginState): boolean {
+  return state === "launching" || state === "waiting_login" || state === "extracting";
 }
 
 function getSupportedRecordingMimeType(): string | undefined {
@@ -121,6 +136,10 @@ export default function UploadPage() {
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [loginState, setLoginState] = useState<InstagramLoginState>("idle");
+  const [loginMessage, setLoginMessage] = useState<string | null>(null);
+  const loginPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     void getSettings()
@@ -322,6 +341,54 @@ export default function UploadPage() {
       setBusy(false);
     }
   };
+
+  /**
+   * Abre o Chromium controlado para o usuário passar pela verificação do site.
+   * Os cookies da sessão são capturados e o download seguinte já usa a sessão.
+   */
+  const openVerificationBrowser = async (source: RemoteMediaSource) => {
+    setLoginBusy(true);
+    setLoginMessage(null);
+    try {
+      const status = await startBrowserLogin(source);
+      setLoginState(status.state);
+      setLoginMessage(status.message);
+
+      if (loginPollRef.current) {
+        clearInterval(loginPollRef.current);
+      }
+      loginPollRef.current = setInterval(() => {
+        void getBrowserLoginStatus(source)
+          .then((next) => {
+            setLoginState(next.state);
+            setLoginMessage(next.message);
+            if (!isLoginInProgress(next.state)) {
+              if (loginPollRef.current) {
+                clearInterval(loginPollRef.current);
+                loginPollRef.current = null;
+              }
+              if (next.state === "completed") {
+                setError(null);
+                setLoginMessage("Cookies salvos. Clique em processar novamente.");
+              }
+            }
+          })
+          .catch(() => undefined);
+      }, 1500);
+    } catch (err) {
+      setLoginMessage(err instanceof Error ? err.message : "Falha ao abrir o navegador de verificação.");
+    } finally {
+      setLoginBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (loginPollRef.current) {
+        clearInterval(loginPollRef.current);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (intent: SubmitIntent = "transcription") => {
     // "Gerar resumo" segue o mesmo caminho de envio; a diferença é a intenção
@@ -718,12 +785,25 @@ export default function UploadPage() {
               <div className="rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">
                 <p>{error}</p>
                 {remoteSource && isLoginRequiredError(error) ? (
-                  <Link
-                    href="/settings#cookies"
-                    className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-sand underline-offset-4 hover:underline"
-                  >
-                    Configurar cookies do {getRemoteSourceLabel(remoteSource)}
-                  </Link>
+                  <div className="mt-3 space-y-2">
+                    <button
+                      type="button"
+                      className="button-primary w-full sm:w-auto"
+                      disabled={loginBusy || isLoginInProgress(loginState)}
+                      onClick={() => void openVerificationBrowser(remoteSource)}
+                    >
+                      {isLoginInProgress(loginState)
+                        ? "Aguardando a janela do navegador..."
+                        : `Abrir navegador e confirmar no ${getRemoteSourceLabel(remoteSource)}`}
+                    </button>
+                    {loginMessage ? <p className="text-sm text-slate">{loginMessage}</p> : null}
+                    <Link
+                      href="/settings#cookies"
+                      className="inline-flex items-center gap-1 text-sm font-semibold text-sand underline-offset-4 hover:underline"
+                    >
+                      Ou enviar o cookies.txt manualmente
+                    </Link>
+                  </div>
                 ) : null}
               </div>
             ) : null}

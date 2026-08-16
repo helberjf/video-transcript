@@ -1,16 +1,16 @@
 from fastapi import APIRouter, Depends, File, UploadFile
 
 from app.core.workspace import get_workspace_id
-from app.schemas.cookies import CookiesStatus, InstagramLoginStatus
+from app.schemas.cookies import BrowserLoginTarget, CookiesStatus, InstagramLoginStatus
+from app.services.browser_login_service import (
+    cancel_login_flow,
+    get_login_status,
+    start_login_flow,
+)
 from app.services.cookies_service import (
     delete_cookies_file,
     read_cookies_status,
     save_cookies_file,
-)
-from app.services.instagram_login_service import (
-    cancel_login_flow,
-    get_login_status,
-    start_login_flow,
 )
 
 
@@ -37,14 +37,38 @@ def delete_cookies_endpoint(_: str = Depends(get_workspace_id)) -> CookiesStatus
 
 @router.post("/cookies/instagram-login", response_model=InstagramLoginStatus)
 async def start_instagram_login_endpoint(_: str = Depends(get_workspace_id)) -> InstagramLoginStatus:
-    return start_login_flow()
+    return start_login_flow("instagram")
 
 
 @router.get("/cookies/instagram-login", response_model=InstagramLoginStatus)
 def get_instagram_login_endpoint(_: str = Depends(get_workspace_id)) -> InstagramLoginStatus:
-    return get_login_status()
+    return get_login_status("instagram")
 
 
 @router.delete("/cookies/instagram-login", response_model=InstagramLoginStatus)
 def cancel_instagram_login_endpoint(_: str = Depends(get_workspace_id)) -> InstagramLoginStatus:
-    return cancel_login_flow()
+    return cancel_login_flow("instagram")
+
+
+@router.post("/cookies/browser-login/{target}", response_model=InstagramLoginStatus)
+async def start_browser_login_endpoint(
+    target: BrowserLoginTarget,
+    _: str = Depends(get_workspace_id),
+) -> InstagramLoginStatus:
+    return start_login_flow(target)
+
+
+@router.get("/cookies/browser-login/{target}", response_model=InstagramLoginStatus)
+def get_browser_login_endpoint(
+    target: BrowserLoginTarget,
+    _: str = Depends(get_workspace_id),
+) -> InstagramLoginStatus:
+    return get_login_status(target)
+
+
+@router.delete("/cookies/browser-login/{target}", response_model=InstagramLoginStatus)
+def cancel_browser_login_endpoint(
+    target: BrowserLoginTarget,
+    _: str = Depends(get_workspace_id),
+) -> InstagramLoginStatus:
+    return cancel_login_flow(target)

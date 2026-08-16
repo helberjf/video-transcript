@@ -13,6 +13,8 @@ class CookiesStatus(BaseModel):
     has_youtube: bool = False
 
 
+BrowserLoginTarget = Literal["instagram", "youtube"]
+
 InstagramLoginState = Literal[
     "idle",
     "launching",

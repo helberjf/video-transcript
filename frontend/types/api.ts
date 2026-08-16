@@ -74,6 +74,8 @@ export interface InstagramLoginStatus {
   cookies: CookiesStatus | null;
 }
 
+export type BrowserLoginTarget = "instagram" | "youtube";
+
 export interface InstagramPostReadPayload {
   url: string;
 }

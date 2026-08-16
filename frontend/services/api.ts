@@ -1,4 +1,5 @@
 import type {
+  BrowserLoginTarget,
   CookiesStatus,
   DashboardStats,
   DocumentModelCreatePayload,
@@ -483,6 +484,18 @@ export function getInstagramLoginStatus() {
 
 export function cancelInstagramLogin() {
   return request<InstagramLoginStatus>("/cookies/instagram-login", { method: "DELETE" });
+}
+
+export function startBrowserLogin(target: BrowserLoginTarget) {
+  return request<InstagramLoginStatus>(`/cookies/browser-login/${target}`, { method: "POST" });
+}
+
+export function getBrowserLoginStatus(target: BrowserLoginTarget) {
+  return request<InstagramLoginStatus>(`/cookies/browser-login/${target}`);
+}
+
+export function cancelBrowserLogin(target: BrowserLoginTarget) {
+  return request<InstagramLoginStatus>(`/cookies/browser-login/${target}`, { method: "DELETE" });
 }
 
 export function readInstagramPost(payload: InstagramPostReadPayload) {

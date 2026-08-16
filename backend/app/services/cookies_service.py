@@ -51,6 +51,45 @@ def _write_netscape_cookies(rows: Iterable[dict]) -> CookiesStatus:
     return read_cookies_status()
 
 
+def _cookie_line_domain(line: str) -> str:
+    return line.split("\t", 1)[0].strip().lower() if "\t" in line else ""
+
+
+def merge_netscape_cookies(rows: Iterable[dict], domain_keywords: Iterable[str]) -> CookiesStatus:
+    """Grava os cookies de um site preservando os dos outros.
+
+    Sem isso, logar no YouTube apagaria os cookies do Instagram (e vice-versa),
+    porque o arquivo cookies.txt e um so.
+    """
+    keywords = tuple(keyword.lower() for keyword in domain_keywords)
+    kept: list[str] = []
+
+    path = _cookies_path()
+    if path.exists():
+        try:
+            existing = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            existing = ""
+        for line in existing.splitlines():
+            if not line.strip() or line.startswith("#"):
+                continue
+            domain = _cookie_line_domain(line)
+            if domain and not any(keyword in domain for keyword in keywords):
+                kept.append(line)
+
+    status = _write_netscape_cookies(rows)
+    if not kept:
+        return status
+
+    try:
+        current = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return status
+
+    path.write_text(current.rstrip("\n") + "\n" + "\n".join(kept) + "\n", encoding="utf-8")
+    return read_cookies_status()
+
+
 def _is_netscape_cookie_file(text: str) -> bool:
     head = text.lstrip()[:200].lower()
     return "netscape http cookie file" in head or "http cookie file" in head
