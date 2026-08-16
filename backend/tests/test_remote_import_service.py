@@ -71,10 +71,11 @@ def test_create_upload_from_remote_url_rejects_invalid_source_url(monkeypatch: p
     assert exc_info.value.detail == "URL invalida para Instagram"
 
 
-def test_build_ydl_options_for_youtube_ignores_cookie_configuration(
+def test_build_ydl_options_for_youtube_uses_cookie_file_but_never_the_browser(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """O cookies.txt libera o bloqueio anonimo; ler do navegador quebra por DPAPI."""
     cookie_file = tmp_path / "cookies.txt"
     cookie_file.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
     monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
@@ -85,8 +86,33 @@ def test_build_ydl_options_for_youtube_ignores_cookie_configuration(
 
     assert options["format"] == "ba[ext=m4a]/ba/b[ext=mp4]/b"
     assert set(options["js_runtimes"]) == set(upload_service.JS_RUNTIME_CANDIDATES)
+    assert options["cookiefile"] == str(cookie_file)
+    assert "cookiesfrombrowser" not in options
+
+
+def test_build_ydl_options_for_youtube_without_cookie_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    monkeypatch.delenv("INSTAGRAM_COOKIES_FILE", raising=False)
+    monkeypatch.delenv("YTDLP_COOKIES_FILE", raising=False)
+    monkeypatch.setenv("YTDLP_COOKIES_FROM_BROWSER", "chrome:Default")
+
+    options = upload_service._build_ydl_options("youtube", "remote.%(ext)s")
+
     assert "cookiefile" not in options
     assert "cookiesfrombrowser" not in options
+
+
+def test_youtube_bot_block_message_points_to_the_cookies_page() -> None:
+    message = upload_service._remote_download_error_message(
+        "youtube",
+        RuntimeError("ERROR: [youtube] abc: Requested format is not available."),
+    )
+
+    assert "cookies.txt" in message
+    assert "alguns minutos" in message
 
 
 def test_js_runtime_can_be_pinned_by_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -117,7 +143,12 @@ def test_build_ydl_options_for_instagram_uses_configured_cookie_file(
 
 def test_youtube_bot_block_retries_with_alternate_player_client_without_cookies(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
+    # Sem isolar o temp_dir, o cookies.txt real da maquina entra nas opcoes.
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    monkeypatch.delenv("INSTAGRAM_COOKIES_FILE", raising=False)
+    monkeypatch.delenv("YTDLP_COOKIES_FILE", raising=False)
     calls: list[dict[str, object]] = []
 
     class FakeYoutubeDL:

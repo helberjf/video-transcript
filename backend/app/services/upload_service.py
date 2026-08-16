@@ -136,15 +136,22 @@ def _build_ydl_options(source: RemoteMediaSource, output_template: str) -> dict[
         "js_runtimes": _resolve_js_runtimes(),
     }
 
+    cookies_file = _resolve_cookies_file()
+
     if source == "youtube":
         # O pipeline so usa o audio (ffmpeg descarta o video), entao baixar apenas a
         # faixa de audio evita os streams de video que o YouTube costuma barrar com 403.
         ydl_options["format"] = "ba[ext=m4a]/ba/b[ext=mp4]/b"
         ydl_options["merge_output_format"] = "mp4"
+
+        # O arquivo de cookies e a saida documentada quando o YouTube passa a pedir
+        # "confirme que voce nao e um robo". Ler cookies direto do navegador fica de
+        # fora: no Windows o Chrome/Edge bloqueiam por DPAPI e quebram o download.
+        if cookies_file:
+            ydl_options["cookiefile"] = cookies_file
     else:
         ydl_options["format"] = "best[ext=mp4]/best"
 
-        cookies_file = _resolve_cookies_file()
         cookies_from_browser = (
             os.environ.get("INSTAGRAM_COOKIES_FROM_BROWSER")
             or os.environ.get("YTDLP_COOKIES_FROM_BROWSER")
@@ -215,6 +222,15 @@ def _remote_download_error_message(source: RemoteMediaSource, error: Exception) 
     compact_message = re.sub(r"\s+", " ", raw_message)
     lower_message = compact_message.lower()
 
+    # O "formato nao disponivel" quase sempre e consequencia do bloqueio anonimo:
+    # sem passar na verificacao, o YouTube nao devolve nenhuma faixa de audio.
+    if "requested format is not available" in lower_message and source == "youtube":
+        return (
+            "O YouTube nao liberou nenhuma faixa de audio para acesso anonimo. "
+            "Costuma ser bloqueio temporario por excesso de downloads deste IP: espere alguns minutos. "
+            "Se persistir, envie o cookies.txt em Ajustes > Cookies para baixar com a sua sessao."
+        )
+
     if "requested format is not available" in lower_message:
         return f"{source_label} nao disponibilizou um formato compativel para download. Atualize o yt-dlp ou tente outro link."
 
@@ -264,9 +280,9 @@ def _remote_download_error_message(source: RemoteMediaSource, error: Exception) 
     if any(fragment in lower_message for fragment in needs_login_fragments):
         if source == "youtube":
             return (
-                "YouTube bloqueou o download anonimo achando que a requisicao pode ser automatizada. "
-                "Abra o link no Chromium controlado, conclua qualquer verificacao, reproduza alguns segundos e tente novamente. "
-                "Se continuar bloqueado, baixe o audio ou video por fora e envie como arquivo local."
+                "O YouTube bloqueou o download anonimo (pediu para confirmar que nao e um robo). "
+                "Isso costuma acontecer depois de varios downloads seguidos do mesmo IP: espere alguns minutos e tente de novo. "
+                "Para nao depender disso, envie o cookies.txt em Ajustes > Cookies e o download passa a usar a sua sessao."
             )
         return (
             f"{source_label} exige sessao logada para acessar essa midia. "

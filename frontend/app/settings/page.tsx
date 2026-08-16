@@ -420,7 +420,10 @@ export default function SettingsPage() {
               <div>
                 <p className="text-sm font-semibold text-ink">Cookies do Instagram / YouTube</p>
                 <p className="mt-1 text-xs leading-5 text-slate">
-                  O Instagram exige sessao logada para baixar a maioria dos Reels. Exporte um arquivo <code>cookies.txt</code> em formato Netscape (extensao &quot;Get cookies.txt LOCALLY&quot; no Chrome/Edge) com a sessao logada e envie aqui.
+                  O Instagram exige sessao logada para baixar a maioria dos Reels. No YouTube o arquivo resolve o bloqueio
+                  &quot;confirme que voce nao e um robo&quot;, que aparece depois de varios downloads seguidos do mesmo IP.
+                  Exporte um <code>cookies.txt</code> em formato Netscape (extensao &quot;Get cookies.txt LOCALLY&quot; no
+                  Chrome/Edge) com a sessao logada e envie aqui.
                 </p>
               </div>
               <span
