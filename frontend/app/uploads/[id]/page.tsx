@@ -8,9 +8,12 @@ import { SelectableWords, type SelectableWordToken } from "@/components/selectab
 import { StatusBadge } from "@/components/status-badge";
 import { usePollUpload } from "@/hooks/use-poll-upload";
 import { formatDate, formatDuration } from "@/lib/utils";
-import { appendWorkspaceActivity, consumePendingReportContext } from "@/lib/workspace-store";
+import { appendWorkspaceActivity, consumePendingReportContext, consumePendingReportIntent } from "@/lib/workspace-store";
 import { downloadReportExport, generateReport, getDocumentModels, getTemplates, updateReport } from "@/services/api";
 import type { DocumentModelRead, ReportExportExtension, ReportRead, ReportTemplate } from "@/types/api";
+
+/** Modelo pré-selecionado ao abrir a página; espelha o seed do backend. */
+const DEFAULT_TEMPLATE_NAME = "Resumo objetivo";
 
 type ReadingModePayload = {
   title: string;
@@ -440,19 +443,24 @@ export default function UploadDetailPage() {
   const [renameError, setRenameError] = useState<string | null>(null);
   const [savingReportId, setSavingReportId] = useState<string | null>(null);
   const [reviewedReportIds, setReviewedReportIds] = useState<Set<string>>(() => new Set());
+  const [autoSummaryPending, setAutoSummaryPending] = useState(false);
 
   useEffect(() => {
     const pendingReportContext = consumePendingReportContext();
     setReportContext(pendingReportContext);
     setIncludeReportContext(Boolean(pendingReportContext));
 
+    setAutoSummaryPending(consumePendingReportIntent());
+
     void getTemplates()
       .then((items) => {
         setTemplates(items);
         if (!templateId) {
-          const favorite = items.find((template) => template.is_favorite);
-          if (favorite) {
-            setTemplateId(favorite.id);
+          const preferred =
+            items.find((template) => template.name.trim().toLowerCase() === DEFAULT_TEMPLATE_NAME.toLowerCase()) ??
+            items.find((template) => template.is_favorite);
+          if (preferred) {
+            setTemplateId(preferred.id);
           }
         }
       })
@@ -475,8 +483,9 @@ export default function UploadDetailPage() {
     () => templates.find((template) => template.id === templateId) ?? null,
     [templateId, templates],
   );
+  const latestReport = reports[0] ?? null;
 
-  const createReport = async () => {
+  const createReport = async (titleOverride?: string) => {
     setSubmitting(true);
     setReportError(null);
     try {
@@ -487,7 +496,7 @@ export default function UploadDetailPage() {
         custom_request: customRequest || null,
         report_context: includeReportContext ? reportContext || null : null,
         additional_instructions: additionalInstructions || null,
-        title: reportTitle,
+        title: titleOverride?.trim() || reportTitle,
       });
       setReports((current: ReportRead[]) => [report, ...current]);
       appendWorkspaceActivity({
@@ -502,6 +511,20 @@ export default function UploadDetailPage() {
       setSubmitting(false);
     }
   };
+
+  // Quando o envio veio do botão "Gerar resumo", o relatório sai sozinho assim
+  // que a transcrição fica pronta — sem o usuário precisar voltar aqui e pedir.
+  useEffect(() => {
+    if (!autoSummaryPending || submitting) {
+      return;
+    }
+    if (!upload?.transcription_text || !templateId || reports.length > 0) {
+      return;
+    }
+
+    setAutoSummaryPending(false);
+    void createReport(selectedTemplate?.name ?? DEFAULT_TEMPLATE_NAME);
+  }, [autoSummaryPending, submitting, upload?.transcription_text, templateId, reports.length]);
 
   const copyTranscription = async () => {
     if (!upload?.transcription_text) {
@@ -591,6 +614,17 @@ export default function UploadDetailPage() {
     });
   };
 
+  /** Abre o relatório mais recente; se ainda não existe nenhum, leva até o formulário. */
+  const openLatestReport = () => {
+    if (latestReport) {
+      openReportReadingMode(latestReport);
+      return;
+    }
+    // Sem "smooth": em algumas janelas do Electron a animação simplesmente não
+    // acontece e o botão parece morto. O salto direto sempre funciona.
+    document.getElementById("gerar-relatorio")?.scrollIntoView({ block: "start" });
+  };
+
   const startRenameReport = (report: ReportRead) => {
     setEditingReportId(report.id);
     setRenameDraft(report.title);
@@ -648,6 +682,14 @@ export default function UploadDetailPage() {
                   <p className="mt-1 text-sm text-slate">Idioma detectado: {upload.language_detected ?? "-"}</p>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    className="button-primary"
+                    type="button"
+                    disabled={!upload.transcription_text || submitting}
+                    onClick={openLatestReport}
+                  >
+                    {submitting ? "Gerando resumo..." : latestReport ? "Ver relatório" : "Gerar relatório"}
+                  </button>
                   <button className="button-secondary" type="button" disabled={!upload.transcription_text} onClick={openTranscriptionReadingMode}>
                     Modo leitura
                   </button>
@@ -699,7 +741,7 @@ export default function UploadDetailPage() {
             </div>
 
             <div className="space-y-6">
-              <section className="panel p-6">
+              <section className="panel p-6" id="gerar-relatorio">
                 <h3 className="text-xl font-semibold">Gerar relatório</h3>
                 {shouldGuideToModel ? (
                   <p className="mt-2 rounded-2xl bg-sand/45 px-4 py-3 text-sm leading-6 text-ink">

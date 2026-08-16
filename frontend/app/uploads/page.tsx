@@ -14,7 +14,7 @@ import {
 import { formatBytes, formatDuration } from "@/lib/utils";
 import { createDocumentModel, getSettings, importRemoteMedia, startProcessing, uploadFile } from "@/services/api";
 import type { RemoteMediaSource, TranscriptionProvider } from "@/types/api";
-import { appendWorkspaceActivity, savePendingReportContext } from "@/lib/workspace-store";
+import { appendWorkspaceActivity, savePendingReportContext, savePendingReportIntent } from "@/lib/workspace-store";
 
 const TAB_CONTENT = {
   upload: {
@@ -46,6 +46,7 @@ const TAB_CONTENT = {
 
 type UploadEntryMode = keyof typeof TAB_CONTENT;
 type RecordingState = "idle" | "recording" | "ready";
+type SubmitIntent = "transcription" | "summary";
 
 const RECORDING_MIME_TYPES = [
   "audio/webm;codecs=opus",
@@ -322,7 +323,13 @@ export default function UploadPage() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (intent: SubmitIntent = "transcription") => {
+    // "Gerar resumo" segue o mesmo caminho de envio; a diferença é a intenção
+    // guardada, que faz a página de detalhe gerar o relatório automaticamente.
+    if (intent === "summary") {
+      savePendingReportIntent();
+    }
+
     if (mode === "upload") {
       await submitLocal();
       return;
@@ -377,34 +384,22 @@ export default function UploadPage() {
     await submitRemote(mode, remoteUrl);
   };
 
-  const buttonLabel = busy
-    ? mode === "upload"
-      ? "Enviando e iniciando processamento..."
-      : mode === "record"
-        ? "Enviando gravacao e iniciando processamento..."
-        : mode === "documentModel"
-          ? "Salvando modelo de documento..."
-      : `Baixando do ${getRemoteSourceLabel(mode)} e iniciando processamento...`
-    : mode === "upload"
-      ? "Enviar arquivo"
-      : mode === "record"
-        ? "Enviar gravacao e transcrever"
-        : mode === "documentModel"
-          ? "Salvar modelo de documento"
-      : `Baixar do ${getRemoteSourceLabel(mode)} e processar`;
+  const actionsDisabled = busy || documentModelBusy || recordingState === "recording";
+  const processLabel = busy ? "Processando..." : "Processar áudio";
+  const summaryLabel = busy ? "Processando..." : "Gerar resumo";
 
   return (
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Upload"
         title="Envie um arquivo ou importe um video por link"
-        description="Use a aba de arquivo local ou puxe a midia direto do YouTube e do Instagram para entrar no mesmo pipeline de transcricao."
+        description="Arquivo local, gravação, YouTube ou Instagram entram no mesmo pipeline de transcrição."
       />
 
       <div className="max-w-3xl">
         <section className="panel p-6">
           <div className="space-y-5">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
               {(Object.entries(TAB_CONTENT) as Array<[UploadEntryMode, (typeof TAB_CONTENT)[UploadEntryMode]]>).map(([key, item]) => {
                 const active = mode === key;
                 return (
@@ -416,14 +411,14 @@ export default function UploadPage() {
                       setMode(key);
                       setError(null);
                     }}
-                    className={`rounded-[1.4rem] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                    className={`rounded-[1.2rem] border px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-55 ${
                       active
                         ? "border-sand/40 bg-gradient-to-br from-sand/20 to-tide/20 text-ink shadow-panel"
                         : "border-white/10 bg-white/[0.04] text-slate hover:border-sand/35 hover:bg-white/[0.08] hover:text-ink"
                     }`}
                   >
                     <p className="text-sm font-semibold">{item.label}</p>
-                    <p className="mt-2 text-xs leading-5 text-slate">{item.description}</p>
+                    <p className="mt-1 hidden text-xs leading-4 text-slate xl:block">{item.description}</p>
                   </button>
                 );
               })}
@@ -569,9 +564,7 @@ export default function UploadPage() {
                           }
                         }}
                       />
-                      <p className="text-sm text-slate">
-                        O backend baixa a midia com yt-dlp, cria o upload automaticamente e segue para a transcricao.
-                      </p>
+                      <p className="text-xs text-slate">O backend baixa a mídia e segue direto para a transcrição.</p>
                     </div>
                   )}
 
@@ -579,7 +572,7 @@ export default function UploadPage() {
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-ink">Contexto temporário</p>
-                          <p className="mt-1 text-sm text-slate">Use esta instrução apenas para o relatório desta execução.</p>
+                          <p className="mt-1 text-xs text-slate">Instrução só para o relatório desta execução.</p>
                         </div>
                         <label className="flex items-center gap-2 text-sm text-slate">
                           <input
@@ -604,12 +597,57 @@ export default function UploadPage() {
                         />
                       ) : null}
                     </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <button
+                      className="button-primary w-full"
+                      type="button"
+                      disabled={actionsDisabled}
+                      onClick={() => void handleSubmit("transcription")}
+                    >
+                      {processLabel}
+                    </button>
+                    <button
+                      className="button-secondary w-full"
+                      type="button"
+                      disabled={actionsDisabled}
+                      onClick={() => void handleSubmit("summary")}
+                    >
+                      {summaryLabel}
+                    </button>
+                  </div>
+                  <p className="text-xs leading-5 text-slate">
+                    Processar áudio gera só a transcrição. Gerar resumo já cria o relatório com o modelo padrão.
+                  </p>
                 </div>
               )}
+
+              {mode === "documentModel" ? (
+                <button
+                  className="button-primary mt-4 w-full"
+                  type="button"
+                  disabled={actionsDisabled}
+                  onClick={() => void handleSubmit("transcription")}
+                >
+                  {documentModelBusy ? "Salvando modelo de documento..." : "Salvar modelo de documento"}
+                </button>
+              ) : null}
             </div>
 
             {mode !== "documentModel" ? (
-              <>
+              <details className="group rounded-[1.4rem] border border-white/10 bg-white/[0.04] p-4">
+                <summary role="button" className="flex cursor-pointer list-none items-center justify-between gap-3 outline-none transition hover:text-sand focus-visible:ring-2 focus-visible:ring-sand/35">
+                  <span>
+                    <span className="block text-sm font-semibold text-ink">Opções de transcrição</span>
+                    <span className="mt-1 block text-xs text-slate">
+                      {LANGUAGE_OPTIONS.find((option) => option.value === language)?.label ?? language} ·{" "}
+                      {TRANSCRIPTION_PROVIDER_LABELS[transcriptionProvider]} · Whisper {whisperModel}
+                    </span>
+                  </span>
+                  <span className="text-sm font-semibold text-sand group-open:hidden">Ajustar</span>
+                  <span className="hidden text-sm font-semibold text-sand group-open:inline">Ocultar</span>
+                </summary>
+                <div className="mt-4 space-y-4 border-t border-white/10 pt-4">
                 <div>
                   <label className="mb-2 block text-sm font-medium">Idioma preferido</label>
                   <select className="field" value={language} onChange={(event) => setLanguage(event.target.value)}>
@@ -653,18 +691,9 @@ export default function UploadPage() {
                   <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
                   Usar APIs externas quando disponiveis
                 </label>
-              </>
+                </div>
+              </details>
             ) : null}
-
-
-            <button
-              className="button-primary w-full"
-              type="button"
-              disabled={busy || documentModelBusy || recordingState === "recording"}
-              onClick={() => void handleSubmit()}
-            >
-              {buttonLabel}
-            </button>
 
             {busy ? (
               mode === "upload" || mode === "record" ? (

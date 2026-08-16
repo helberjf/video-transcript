@@ -41,6 +41,7 @@ export const DEFAULT_WORKSPACE: WorkspaceProfile = {
 const WORKSPACE_KEY = "formreport.workspace.profile";
 const ACTIVITY_PREFIX = "formreport.workspace.activity.";
 const PENDING_REPORT_CONTEXT_PREFIX = "formreport.workspace.pending-report-context.";
+const PENDING_REPORT_INTENT_PREFIX = "formreport.workspace.pending-report-intent.";
 export const WORKSPACE_CHANGE_EVENT = "formreport:workspace-changed";
 
 function canUseStorage(): boolean {
@@ -158,4 +159,29 @@ export function consumePendingReportContext(): string {
   const value = window.localStorage.getItem(key) ?? "";
   window.localStorage.removeItem(key);
   return value;
+}
+
+/**
+ * Marca que o usuário pediu "Gerar resumo" no envio. A página de detalhe lê
+ * essa intenção e dispara o relatório sozinha assim que a transcrição termina.
+ */
+export function savePendingReportIntent(): void {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  const workspace = loadWorkspaceProfile();
+  window.localStorage.setItem(`${PENDING_REPORT_INTENT_PREFIX}${workspace.id}`, "summary");
+}
+
+export function consumePendingReportIntent(): boolean {
+  if (!canUseStorage()) {
+    return false;
+  }
+
+  const workspace = loadWorkspaceProfile();
+  const key = `${PENDING_REPORT_INTENT_PREFIX}${workspace.id}`;
+  const value = window.localStorage.getItem(key);
+  window.localStorage.removeItem(key);
+  return value === "summary";
 }
