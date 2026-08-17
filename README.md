@@ -115,6 +115,32 @@ Deploying the web version requires `BACKEND_AUTH_SECRET` set to the same value
 on the frontend and the backend; outside `APP_ENV=development` there is no
 fallback secret and authenticated requests fail without it.
 
+## Deploying the web app (Vercel)
+
+Only `frontend/` is deployable to Vercel — the FastAPI backend has to be hosted
+elsewhere (VPS, Fly, Render) and pointed at with `NEXT_PUBLIC_API_BASE_URL`.
+
+In the Vercel project settings, set **Root Directory** to `frontend`. Without it
+the build fails with `No Next.js version detected`: Vercel looks for Next in the
+repository root, which holds the Electron package instead. With the root
+directory set, install/build/output are detected automatically — no `vercel.json`
+is needed.
+
+Required environment variables:
+
+| Variable | Why |
+| --- | --- |
+| `DATABASE_URL` | Postgres reachable from Vercel (a local instance will not work) |
+| `NEXTAUTH_SECRET` | signs the session; no fallback outside development |
+| `NEXTAUTH_URL` | public URL of the deployment |
+| `BACKEND_AUTH_SECRET` | must be the **same value** on the backend host, or every authenticated request fails |
+| `NEXT_PUBLIC_API_BASE_URL` | e.g. `https://api.seudominio.com/api` |
+| `ADMIN_EMAILS` | accounts that skip the invite and the credit limit |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | only when enabling Google sign-in |
+
+After the first deploy, apply the migrations against the production database
+(`npx prisma migrate deploy` from `frontend/`) and create the invite codes.
+
 ## Notes
 
 - The project is structured as a commercial-ready SaaS (auth, billing, email) while still being runnable fully locally.
