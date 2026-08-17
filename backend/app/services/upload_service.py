@@ -76,9 +76,19 @@ def _resolve_cookies_file() -> str | None:
     return None
 
 
-# O cliente "android" entrega URLs que o YouTube responde com HTTP 403, entao a lista
-# comeca pelo "android_vr", que hoje e o mais confiavel para acesso anonimo.
-YOUTUBE_FALLBACK_PLAYER_CLIENTS: tuple[str, ...] = ("android_vr", "tv", "web_safari", "mweb", "ios")
+# Nenhum player client funciona sempre: o mesmo video que hoje sai pelo "android"
+# amanha so sai pelo "android_vr". A ordem comeca pelos que costumam entregar so a
+# faixa de audio (download pequeno) e termina nos que entregam o progressivo inteiro,
+# mas raramente falham. Nao remova um cliente so porque falhou em um video.
+YOUTUBE_FALLBACK_PLAYER_CLIENTS: tuple[str, ...] = (
+    "android_vr",
+    "tv",
+    "web_safari",
+    "mweb",
+    "ios",
+    "tv_simply",
+    "android",
+)
 
 
 def _with_youtube_player_client(ydl_options: dict[str, Any], player_client: str) -> dict[str, Any]:

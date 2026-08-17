@@ -30,9 +30,10 @@ class TargetConfig:
     # Basta um dos conjuntos estar presente para considerar a sessao pronta.
     required_cookie_sets: tuple[frozenset[str], ...]
     waiting_message: str
-    # No YouTube, so passar pela verificacao ja rende cookies uteis; entao fechar
-    # a janela salva o que houver em vez de cancelar.
+    # No YouTube o login e opcional, entao fechar a janela salva o que houver.
     save_on_close: bool
+    # Avisa quando so vieram cookies de visitante, que nao autenticam nada.
+    visitor_only_message: str | None = None
 
 
 TARGETS: dict[BrowserLoginTarget, TargetConfig] = {
@@ -54,10 +55,14 @@ TARGETS: dict[BrowserLoginTarget, TargetConfig] = {
             frozenset({"__Secure-1PSID"}),
         ),
         waiting_message=(
-            "Na janela aberta, conclua a verificacao do YouTube (e faca login, se quiser). "
-            "Os cookies sao capturados assim que a sessao ficar ativa; se preferir, feche a janela ao terminar."
+            "Na janela aberta, conclua a verificacao do YouTube. Se fizer login na conta do Google, "
+            "os cookies liberam o bloqueio com mais forca. Feche a janela ao terminar."
         ),
         save_on_close=True,
+        visitor_only_message=(
+            "Salvei apenas cookies de visitante: sem login eles nao autenticam nada e o bloqueio do "
+            "YouTube continua. Na maioria dos casos o download funciona sem isso — tente de novo primeiro."
+        ),
     ),
 }
 
@@ -205,7 +210,15 @@ async def _run_login_flow(target: BrowserLoginTarget) -> None:
             return
 
         cookies_status = merge_netscape_cookies(session_cookies, config.domain_keywords)
-        _set_state(target, "completed", f"Cookies do {config.label} salvos com sucesso.", cookies=cookies_status)
+        # Sem cookies de sessao a captura nao autentica nada: dizer "salvo com
+        # sucesso" mandaria o usuario tentar de novo achando que resolveu.
+        logged_in = _has_required_cookies(config, session_cookies)
+        message = (
+            f"Cookies do {config.label} salvos com sucesso."
+            if logged_in or not config.visitor_only_message
+            else config.visitor_only_message
+        )
+        _set_state(target, "completed", message, cookies=cookies_status)
     except asyncio.CancelledError:
         _set_state(target, "canceled", "Login cancelado.")
         raise

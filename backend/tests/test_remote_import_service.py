@@ -230,6 +230,45 @@ def test_youtube_forbidden_download_walks_through_every_player_client(
     assert cleanups == [1, 2, 3]
 
 
+def test_android_stays_in_the_fallback_chain() -> None:
+    """Ele ja foi removido por falhar em um video e era o unico que funcionava em outros."""
+    assert "android" in upload_service.YOUTUBE_FALLBACK_PLAYER_CLIENTS
+    assert "android_vr" in upload_service.YOUTUBE_FALLBACK_PLAYER_CLIENTS
+
+
+def test_every_fallback_client_is_tried_before_giving_up(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    tentados: list[str] = []
+
+    class FakeYoutubeDL:
+        def __init__(self, options) -> None:
+            client = (options.get("extractor_args") or {}).get("youtube", {}).get("player_client")
+            tentados.append(client[0] if client else "(padrao)")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extract_info(self, url: str, download: bool = False):
+            if tentados[-1] != upload_service.YOUTUBE_FALLBACK_PLAYER_CLIENTS[-1]:
+                raise RuntimeError("Sign in to confirm you're not a bot")
+            return {"id": "abc123", "title": "Video de teste"}
+
+    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
+
+    result = upload_service.extract_remote_info_with_ssl_fallback(
+        "youtube",
+        "https://youtu.be/abc123",
+        upload_service._build_ydl_options("youtube", "remote.%(ext)s"),
+        download=True,
+    )
+
+    assert result == {"id": "abc123", "title": "Video de teste"}
+    assert tentados == ["(padrao)", *upload_service.YOUTUBE_FALLBACK_PLAYER_CLIENTS]
+
+
 def test_youtube_forbidden_error_message_explains_next_steps() -> None:
     message = upload_service._remote_download_error_message(
         "youtube",
