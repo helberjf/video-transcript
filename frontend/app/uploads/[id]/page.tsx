@@ -1,14 +1,14 @@
 ﻿"use client";
 
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SectionHeader } from "@/components/section-header";
 import { SelectableWords, type SelectableWordToken } from "@/components/selectable-words";
 import { StatusBadge } from "@/components/status-badge";
 import { usePollUpload } from "@/hooks/use-poll-upload";
 import { formatDate, formatDuration } from "@/lib/utils";
-import { appendWorkspaceActivity, consumePendingReportContext, consumePendingReportIntent } from "@/lib/workspace-store";
+import { appendWorkspaceActivity, consumePendingReportContext } from "@/lib/workspace-store";
 import { downloadReportExport, generateReport, getDocumentModels, getTemplates, updateReport } from "@/services/api";
 import type { DocumentModelRead, ReportExportExtension, ReportRead, ReportTemplate } from "@/types/api";
 
@@ -420,6 +420,7 @@ export default function UploadDetailPage() {
   const searchParams = useSearchParams();
   const uploadId = useMemo(() => String(params.id), [params.id]);
   const shouldGuideToModel = searchParams.get("next") === "model";
+  const wantsAutoSummary = searchParams.get("resumo") === "1";
   const { upload, reports, setReports, loading, error } = usePollUpload(uploadId);
   const [templates, setTemplates] = useState<ReportTemplate[]>([]);
   const [documentModels, setDocumentModels] = useState<DocumentModelRead[]>([]);
@@ -443,14 +444,12 @@ export default function UploadDetailPage() {
   const [renameError, setRenameError] = useState<string | null>(null);
   const [savingReportId, setSavingReportId] = useState<string | null>(null);
   const [reviewedReportIds, setReviewedReportIds] = useState<Set<string>>(() => new Set());
-  const [autoSummaryPending, setAutoSummaryPending] = useState(false);
+  const autoSummaryStartedRef = useRef(false);
 
   useEffect(() => {
     const pendingReportContext = consumePendingReportContext();
     setReportContext(pendingReportContext);
     setIncludeReportContext(Boolean(pendingReportContext));
-
-    setAutoSummaryPending(consumePendingReportIntent());
 
     void getTemplates()
       .then((items) => {
@@ -512,19 +511,21 @@ export default function UploadDetailPage() {
     }
   };
 
-  // Quando o envio veio do botão "Gerar resumo", o relatório sai sozinho assim
-  // que a transcrição fica pronta — sem o usuário precisar voltar aqui e pedir.
+  // Quando o envio veio do botão "Transcrever + resumir", o relatório sai sozinho
+  // assim que a transcrição fica pronta — sem o usuário voltar aqui e pedir.
   useEffect(() => {
-    if (!autoSummaryPending || submitting) {
+    if (!wantsAutoSummary || autoSummaryStartedRef.current || submitting) {
       return;
     }
     if (!upload?.transcription_text || !templateId || reports.length > 0) {
       return;
     }
 
-    setAutoSummaryPending(false);
+    // O ref garante uma única execução mesmo com o efeito rodando duas vezes
+    // no StrictMode ou com o polling atualizando o upload.
+    autoSummaryStartedRef.current = true;
     void createReport(selectedTemplate?.name ?? DEFAULT_TEMPLATE_NAME);
-  }, [autoSummaryPending, submitting, upload?.transcription_text, templateId, reports.length]);
+  }, [wantsAutoSummary, submitting, upload?.transcription_text, templateId, reports.length]);
 
   const copyTranscription = async () => {
     if (!upload?.transcription_text) {

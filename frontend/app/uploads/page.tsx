@@ -22,7 +22,7 @@ import {
   uploadFile,
 } from "@/services/api";
 import type { InstagramLoginState, RemoteMediaSource, TranscriptionProvider } from "@/types/api";
-import { appendWorkspaceActivity, savePendingReportContext, savePendingReportIntent } from "@/lib/workspace-store";
+import { appendWorkspaceActivity, savePendingReportContext } from "@/lib/workspace-store";
 
 const TAB_CONTENT = {
   upload: {
@@ -189,17 +189,20 @@ export default function UploadPage() {
   const remoteUrl = mode === "youtube" ? youtubeUrl : instagramUrl;
   const currentTab = TAB_CONTENT[mode];
 
-  const processImportedUpload = async (uploadId: string) => {
+  const processImportedUpload = async (uploadId: string, intent: SubmitIntent = "transcription") => {
     await startProcessing(uploadId, {
       language,
       use_api: useApi,
       whisper_model: whisperModel,
       transcription_provider: effectiveTranscriptionProvider,
     });
-    router.push(`/uploads/${uploadId}?next=model`);
+    // A intencao vai na URL: guardar em localStorage nao sobrevive ao efeito de
+    // montagem rodando duas vezes no StrictMode, que consumia e descartava o pedido.
+    const summary = intent === "summary" ? "&resumo=1" : "";
+    router.push(`/uploads/${uploadId}?next=model${summary}`);
   };
 
-  const submitMediaFile = async (mediaFile: File) => {
+  const submitMediaFile = async (mediaFile: File, intent: SubmitIntent) => {
     setBusy(true);
     setProgress(0);
     setError(null);
@@ -215,29 +218,29 @@ export default function UploadPage() {
         description: `${mediaFile.name} foi enviado para gerar transcricao e relatorio.`,
         href: `/uploads/${upload.id}`,
       });
-      await processImportedUpload(upload.id);
+      await processImportedUpload(upload.id, intent);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao iniciar processamento");
       setBusy(false);
     }
   };
 
-  const submitLocal = async () => {
+  const submitLocal = async (intent: SubmitIntent) => {
     if (!file) {
       setError("Selecione um arquivo de audio ou video.");
       return;
     }
 
-    await submitMediaFile(file);
+    await submitMediaFile(file, intent);
   };
 
-  const submitRecording = async () => {
+  const submitRecording = async (intent: SubmitIntent) => {
     if (!recordedFile) {
       setError("Grave um audio antes de enviar para transcricao.");
       return;
     }
 
-    await submitMediaFile(recordedFile);
+    await submitMediaFile(recordedFile, intent);
   };
 
   const discardRecording = () => {
@@ -311,7 +314,7 @@ export default function UploadPage() {
     }
   };
 
-  const submitRemote = async (source: RemoteMediaSource, url: string) => {
+  const submitRemote = async (source: RemoteMediaSource, url: string, intent: SubmitIntent) => {
     if (!url.trim()) {
       setError(`Cole um link valido do ${getRemoteSourceLabel(source)}.`);
       return;
@@ -335,7 +338,7 @@ export default function UploadPage() {
         description: url.trim(),
         href: `/uploads/${upload.id}`,
       });
-      await processImportedUpload(upload.id);
+      await processImportedUpload(upload.id, intent);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao baixar e iniciar processamento");
       setBusy(false);
@@ -391,19 +394,15 @@ export default function UploadPage() {
   }, []);
 
   const handleSubmit = async (intent: SubmitIntent = "transcription") => {
-    // "Gerar resumo" segue o mesmo caminho de envio; a diferença é a intenção
-    // guardada, que faz a página de detalhe gerar o relatório automaticamente.
-    if (intent === "summary") {
-      savePendingReportIntent();
-    }
-
+    // Os dois botoes seguem o mesmo caminho de envio. A diferenca e a intencao,
+    // que viaja na URL e faz a pagina de detalhe gerar o resumo ao terminar.
     if (mode === "upload") {
-      await submitLocal();
+      await submitLocal(intent);
       return;
     }
 
     if (mode === "record") {
-      await submitRecording();
+      await submitRecording(intent);
       return;
     }
 
@@ -448,12 +447,12 @@ export default function UploadPage() {
       return;
     }
 
-    await submitRemote(mode, remoteUrl);
+    await submitRemote(mode, remoteUrl, intent);
   };
 
   const actionsDisabled = busy || documentModelBusy || recordingState === "recording";
-  const processLabel = busy ? "Processando..." : "Processar áudio";
-  const summaryLabel = busy ? "Processando..." : "Gerar resumo";
+  const processLabel = busy ? "Processando..." : "Só transcrever";
+  const summaryLabel = busy ? "Processando..." : "Transcrever + resumir";
 
   return (
     <div className="space-y-6">
@@ -684,7 +683,8 @@ export default function UploadPage() {
                     </button>
                   </div>
                   <p className="text-xs leading-5 text-slate">
-                    Processar áudio gera só a transcrição. Gerar resumo já cria o relatório com o modelo padrão.
+                    O primeiro botão entrega apenas a transcrição. O segundo transcreve e, ao terminar, já gera o resumo
+                    com o modelo padrão — as duas coisas de uma vez.
                   </p>
                 </div>
               )}
