@@ -214,7 +214,8 @@ def _generate_claude(prompt: str, api_key: str) -> tuple[str, TranscriptionEngin
     client = Anthropic(api_key=api_key, timeout=settings.provider_timeout_seconds)
     response = client.messages.create(
         model=settings.claude_report_model,
-        max_tokens=4096,
+        # O resumo detalhado de um vídeo longo passa fácil de 4096 tokens e sairia cortado.
+        max_tokens=8192,
         system="Você gera relatórios claros, objetivos e bem estruturados.",
         messages=[{"role": "user", "content": prompt}],
     )

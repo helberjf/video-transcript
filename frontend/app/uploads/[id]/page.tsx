@@ -3,6 +3,7 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { BrandLoader, LoadingDots } from "@/components/brand-loader";
 import { SectionHeader } from "@/components/section-header";
 import { SelectableWords, type SelectableWordToken } from "@/components/selectable-words";
 import { StatusBadge } from "@/components/status-badge";
@@ -10,17 +11,73 @@ import { usePollUpload } from "@/hooks/use-poll-upload";
 import { formatDate, formatDuration } from "@/lib/utils";
 import { appendWorkspaceActivity, consumePendingReportContext } from "@/lib/workspace-store";
 import { downloadReportExport, generateReport, getDocumentModels, getTemplates, updateReport } from "@/services/api";
-import type { DocumentModelRead, ReportExportExtension, ReportRead, ReportTemplate } from "@/types/api";
+import type { DocumentModelRead, ProcessingStatus, ReportExportExtension, ReportRead, ReportTemplate } from "@/types/api";
 
 /** Modelo pré-selecionado ao abrir a página; espelha o seed do backend. */
 const DEFAULT_TEMPLATE_NAME = "Resumo objetivo";
+/** Modelo do botão "Ver resumo detalhado"; espelha o seed do backend. */
+const DETAILED_SUMMARY_TEMPLATE_NAME = "Resumo detalhado";
+/** Usado só se o workspace não tiver o modelo (ex.: apagado pelo usuário). */
+const DETAILED_SUMMARY_FALLBACK_REQUEST =
+  "Escreva um resumo detalhado e didático, pensado para que quem ler consiga ensinar a outra pessoa tudo o que foi dito. " +
+  "Siga a ordem do conteúdo, cubra todos os pontos e explique cada um com o porquê, os exemplos, números e passos citados. " +
+  "Defina termos técnicos, termine com os pontos-chave para lembrar e não invente nada que não esteja na transcrição.";
+
+const PROCESSING_STEPS: { status: ProcessingStatus; label: string }[] = [
+  { status: "uploaded", label: "Arquivo recebido" },
+  { status: "converting", label: "Convertendo o áudio" },
+  { status: "transcribing", label: "Transcrevendo" },
+];
 
 type ReadingModePayload = {
   title: string;
   subtitle: string;
   content: string;
   format: "plain" | "markdown";
+  /** O conteúdo ainda está sendo gerado; o modal mostra o loading. */
+  loading?: boolean;
 };
+
+function matchesTemplateName(value: string | undefined, name: string): boolean {
+  return value?.trim().toLowerCase() === name.toLowerCase();
+}
+
+function ProcessingState({ status }: { status: ProcessingStatus }) {
+  const currentIndex = Math.max(
+    PROCESSING_STEPS.findIndex((step) => step.status === status),
+    0,
+  );
+
+  return (
+    <div className="mt-6 flex flex-col items-center gap-5 rounded-3xl border border-white/10 bg-midnight/40 px-5 py-8 text-center" role="status" aria-live="polite">
+      <BrandLoader />
+      <div>
+        <p className="text-base font-semibold text-ink">
+          {PROCESSING_STEPS[currentIndex].label}
+          <LoadingDots />
+        </p>
+        <p className="mt-1 text-sm text-slate">Esta área será atualizada automaticamente quando a transcrição ficar pronta.</p>
+      </div>
+      <ol className="flex flex-wrap justify-center gap-2 text-xs font-medium">
+        {PROCESSING_STEPS.map((step, index) => (
+          <li
+            key={step.status}
+            className={`rounded-full border px-3 py-1 ${
+              index < currentIndex
+                ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-200"
+                : index === currentIndex
+                  ? "border-sand/40 bg-sand/15 text-sand"
+                  : "border-white/10 text-slate"
+            }`}
+          >
+            {index < currentIndex ? "✓ " : ""}
+            {step.label}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 type ReaderBlock =
   | { type: "heading"; text: string; level: 1 | 2 | 3 | 4 }
@@ -444,6 +501,8 @@ export default function UploadDetailPage() {
   const [renameError, setRenameError] = useState<string | null>(null);
   const [savingReportId, setSavingReportId] = useState<string | null>(null);
   const [reviewedReportIds, setReviewedReportIds] = useState<Set<string>>(() => new Set());
+  const [generatingDetailedSummary, setGeneratingDetailedSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const autoSummaryStartedRef = useRef(false);
 
   useEffect(() => {
@@ -483,6 +542,17 @@ export default function UploadDetailPage() {
     [templateId, templates],
   );
   const latestReport = reports[0] ?? null;
+
+  // Um relatório conta como resumo se veio do modelo correspondente ou, quando o
+  // modelo foi apagado/renomeado, se ainda leva o nome dele como título.
+  const findReportOfTemplate = (templateName: string) => {
+    const template = templates.find((item) => matchesTemplateName(item.name, templateName));
+    return (
+      reports.find((report) => (template && report.template_id === template.id) || matchesTemplateName(report.title, templateName)) ?? null
+    );
+  };
+  const summaryReport = findReportOfTemplate(DEFAULT_TEMPLATE_NAME);
+  const detailedSummaryReport = findReportOfTemplate(DETAILED_SUMMARY_TEMPLATE_NAME);
 
   const createReport = async (titleOverride?: string) => {
     setSubmitting(true);
@@ -606,19 +676,67 @@ export default function UploadDetailPage() {
     });
   };
 
+  const buildReportReadingMode = (report: ReportRead): ReadingModePayload => ({
+    title: report.title,
+    subtitle: `${formatDate(report.created_at)} • ${report.generator_engine}`,
+    content: report.content,
+    format: report.output_format === "markdown" ? "markdown" : "plain",
+  });
+
   const openReportReadingMode = (report: ReportRead) => {
-    setReadingMode({
-      title: report.title,
-      subtitle: `${formatDate(report.created_at)} • ${report.generator_engine}`,
-      content: report.content,
-      format: report.output_format === "markdown" ? "markdown" : "plain",
-    });
+    setReadingMode(buildReportReadingMode(report));
   };
 
-  /** Abre o relatório mais recente; se ainda não existe nenhum, leva até o formulário. */
+  /** Abre o resumo detalhado; se ainda não existe, gera na hora com o loading no modal. */
+  const openDetailedSummary = async () => {
+    if (detailedSummaryReport) {
+      openReportReadingMode(detailedSummaryReport);
+      return;
+    }
+    if (!upload?.transcription_text || generatingDetailedSummary) {
+      return;
+    }
+
+    const template = templates.find((item) => matchesTemplateName(item.name, DETAILED_SUMMARY_TEMPLATE_NAME));
+    setGeneratingDetailedSummary(true);
+    setSummaryError(null);
+    setReadingMode({
+      title: DETAILED_SUMMARY_TEMPLATE_NAME,
+      subtitle: upload.original_filename ?? "Arquivo atual",
+      content: "",
+      format: "markdown",
+      loading: true,
+    });
+
+    try {
+      const report = await generateReport({
+        upload_id: uploadId,
+        template_id: template?.id ?? null,
+        custom_request: template ? null : DETAILED_SUMMARY_FALLBACK_REQUEST,
+        title: DETAILED_SUMMARY_TEMPLATE_NAME,
+      });
+      setReports((current: ReportRead[]) => [report, ...current]);
+      appendWorkspaceActivity({
+        type: "report",
+        title: "Resumo detalhado gerado",
+        description: `${report.title} foi criado para ${upload.original_filename ?? "o arquivo"}.`,
+        href: `/uploads/${uploadId}`,
+      });
+      // Se o usuário fechou o modal enquanto esperava, não reabre sozinho.
+      setReadingMode((current) => (current?.loading ? buildReportReadingMode(report) : current));
+    } catch (err) {
+      setReadingMode((current) => (current?.loading ? null : current));
+      setSummaryError(err instanceof Error ? err.message : "Falha ao gerar resumo detalhado");
+    } finally {
+      setGeneratingDetailedSummary(false);
+    }
+  };
+
+  /** Abre o resumo (ou o relatório mais recente); se ainda não existe nenhum, leva até o formulário. */
   const openLatestReport = () => {
-    if (latestReport) {
-      openReportReadingMode(latestReport);
+    const report = summaryReport ?? latestReport;
+    if (report) {
+      openReportReadingMode(report);
       return;
     }
     // Sem "smooth": em algumas janelas do Electron a animação simplesmente não
@@ -663,7 +781,15 @@ export default function UploadDetailPage() {
         action={upload ? <StatusBadge status={upload.status} /> : null}
       />
 
-      {loading ? <div className="panel p-6 text-sm text-slate">Carregando processo...</div> : null}
+      {loading ? (
+        <div className="panel flex items-center gap-4 p-6 text-sm text-slate" role="status">
+          <BrandLoader size={48} />
+          <span>
+            Carregando processo
+            <LoadingDots />
+          </span>
+        </div>
+      ) : null}
       {error ? <div className="panel p-6 text-sm text-ember">{error}</div> : null}
 
       {upload ? (
@@ -686,10 +812,18 @@ export default function UploadDetailPage() {
                   <button
                     className="button-primary"
                     type="button"
+                    disabled={!upload.transcription_text || generatingDetailedSummary}
+                    onClick={() => void openDetailedSummary()}
+                  >
+                    {generatingDetailedSummary ? "Gerando resumo detalhado..." : "Ver resumo detalhado"}
+                  </button>
+                  <button
+                    className={summaryReport ? "button-primary" : "button-secondary"}
+                    type="button"
                     disabled={!upload.transcription_text || submitting}
                     onClick={openLatestReport}
                   >
-                    {submitting ? "Gerando resumo..." : latestReport ? "Ver relatório" : "Gerar relatório"}
+                    {submitting ? "Gerando resumo..." : summaryReport ? "Ver resumo" : latestReport ? "Ver relatório" : "Gerar relatório"}
                   </button>
                   <button className="button-secondary" type="button" disabled={!upload.transcription_text} onClick={openTranscriptionReadingMode}>
                     Modo leitura
@@ -730,12 +864,15 @@ export default function UploadDetailPage() {
                     {upload.transcription_text}
                   </div>
                 </details>
-              ) : (
-                <div className="mt-6 rounded-3xl border border-white/10 bg-midnight/40 p-5 text-sm leading-7 text-ink">
-                  O processamento ainda está em andamento. Esta área será atualizada automaticamente.
+              ) : upload.status === "completed" || upload.status === "error" ? (
+                <div className="mt-6 rounded-3xl border border-white/10 bg-midnight/40 p-5 text-sm leading-7 text-slate">
+                  Nenhuma transcrição disponível para este arquivo.
                 </div>
+              ) : (
+                <ProcessingState status={upload.status} />
               )}
               <p className="mt-4 text-xs leading-6 text-slate">Use o modo leitura para abrir a transcrição em uma visualização mais confortável, com coluna mais estreita e tipografia ampliada.</p>
+              {summaryError ? <p className="mt-4 rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{summaryError}</p> : null}
               {copyFeedback ? <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate">{copyFeedback}</p> : null}
               {transcriptionExportError ? <p className="mt-4 rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{transcriptionExportError}</p> : null}
               {upload.error_message ? <p className="mt-4 rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{upload.error_message}</p> : null}
@@ -977,7 +1114,20 @@ export default function UploadDetailPage() {
                 </button>
               </div>
               <div className="overflow-y-auto px-6 py-8 sm:px-10 sm:py-10">
-                <ReadableContent content={readingMode.content} format={readingMode.format} />
+                {readingMode.loading ? (
+                  <div className="flex flex-col items-center gap-5 py-10 text-center" role="status" aria-live="polite">
+                    <BrandLoader />
+                    <div>
+                      <p className="text-base font-semibold text-ink">
+                        Gerando {readingMode.title.toLowerCase()}
+                        <LoadingDots />
+                      </p>
+                      <p className="mt-1 text-sm text-slate">Em vídeos longos isso pode levar um minuto. O resumo abre aqui assim que ficar pronto.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <ReadableContent content={readingMode.content} format={readingMode.format} />
+                )}
               </div>
             </div>
           </div>

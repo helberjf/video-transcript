@@ -7,8 +7,48 @@ from app.repositories.report_template_repository import ReportTemplateRepository
 DEFAULT_SEED_WORKSPACE_ID = "local-workspace"
 
 DEFAULT_TEMPLATE_NAME = "Resumo objetivo"
+DETAILED_SUMMARY_TEMPLATE_NAME = "Resumo detalhado"
 
 DEFAULT_TEMPLATES = [
+    {
+        "name": DETAILED_SUMMARY_TEMPLATE_NAME,
+        "description": "Explica todos os pontos do conteúdo para quem lê conseguir ensinar a outra pessoa.",
+        "category": "resumo",
+        "base_prompt": (
+            "Escreva um resumo detalhado e didático da transcrição, pensado para que quem ler consiga "
+            "entender e depois ensinar a outra pessoa tudo o que foi dito. Percorra o conteúdo na ordem "
+            "em que aparece e cubra todos os pontos, sem pular nenhum tema relevante. Para cada ponto, "
+            "explique a ideia com as próprias palavras, o porquê dela, e inclua os exemplos, números, "
+            "nomes, passos e recomendações citados. Defina termos técnicos na primeira vez que aparecem. "
+            "Não invente nada que não esteja na transcrição."
+        ),
+        "example_output": (
+            "# Resumo detalhado\n\n"
+            "## Visão geral\n"
+            "Do que se trata, para quem é e qual a mensagem central, em um parágrafo.\n\n"
+            "## 1. Primeiro tema\n"
+            "Explicação do que foi dito, com o raciocínio por trás.\n"
+            "- Exemplo ou dado citado\n"
+            "- Detalhe importante\n\n"
+            "## 2. Segundo tema\n"
+            "Explicação do que foi dito, com o raciocínio por trás.\n\n"
+            "## Termos e conceitos\n"
+            "- **Termo**: definição simples\n\n"
+            "## Como explicar para alguém\n"
+            "1. Ideia principal em uma frase\n"
+            "2. Os pontos que sustentam essa ideia\n"
+            "3. O que fazer na prática\n\n"
+            "## Pontos-chave para lembrar\n"
+            "- Ponto 1\n"
+            "- Ponto 2"
+        ),
+        "complementary_instructions": (
+            "Use linguagem simples e parágrafos curtos. Prefira explicar a só listar. "
+            "Se algo não estiver claro no áudio, escreva 'Não informado na transcrição'."
+        ),
+        "output_format": ReportFormat.MARKDOWN,
+        "is_favorite": True,
+    },
     {
         "name": DEFAULT_TEMPLATE_NAME,
         "description": "Resumo curto e direto do que foi dito, em tópicos.",
