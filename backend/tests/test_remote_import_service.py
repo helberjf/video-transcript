@@ -269,6 +269,44 @@ def test_every_fallback_client_is_tried_before_giving_up(monkeypatch: pytest.Mon
     assert tentados == ["(padrao)", *upload_service.YOUTUBE_FALLBACK_PLAYER_CLIENTS]
 
 
+def test_youtube_page_reload_error_continues_to_later_player_clients(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    tentados: list[str] = []
+
+    class FakeYoutubeDL:
+        def __init__(self, options) -> None:
+            client = (options.get("extractor_args") or {}).get("youtube", {}).get("player_client")
+            tentados.append(client[0] if client else "(padrao)")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extract_info(self, url: str, download: bool = False):
+            if tentados[-1] == "android":
+                return {"id": "XHNRPzVo42I", "title": "NAO use supabase para criar um projeto"}
+            if tentados[-1] == "tv":
+                raise RuntimeError("ERROR: [youtube] XHNRPzVo42I: The page needs to be reloaded.")
+            raise RuntimeError("unable to download video data: HTTP Error 403: Forbidden")
+
+    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
+
+    result = upload_service.extract_remote_info_with_ssl_fallback(
+        "youtube",
+        "https://youtu.be/XHNRPzVo42I?si=mNWP2qRcfibdyQst",
+        upload_service._build_ydl_options("youtube", "remote.%(ext)s"),
+        download=True,
+    )
+
+    assert result == {"id": "XHNRPzVo42I", "title": "NAO use supabase para criar um projeto"}
+    assert tentados == ["(padrao)", *upload_service.YOUTUBE_FALLBACK_PLAYER_CLIENTS]
+
+
 def test_youtube_forbidden_error_message_explains_next_steps() -> None:
     message = upload_service._remote_download_error_message(
         "youtube",

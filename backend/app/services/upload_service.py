@@ -329,6 +329,7 @@ YOUTUBE_RETRYABLE_ERROR_FRAGMENTS: tuple[str, ...] = (
     "failed to extract any player response",
     "drm protected",
     "only images are available",
+    "the page needs to be reloaded",
 )
 
 
