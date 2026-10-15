@@ -1,17 +1,20 @@
 # ModeloIA — AI Media Transcription & Report Studio
 
-A full-stack application that turns audio/video into transcripts and structured reports using multiple AI providers. It ships as a **Next.js SaaS** (web) and an **Electron desktop app** (Windows), backed by a **FastAPI** service.
+A full-stack application that turns audio/video and **video-call meetings** into transcripts, speaker-separated minutes and structured reports using multiple AI providers. It ships as a **Next.js** web app (commercial SaaS or a password-protected personal deployment on Vercel) and an **Electron desktop app** (Windows), backed by a **FastAPI** service.
+
+> Full feature list (in Portuguese): [docs/FUNCIONALIDADES.md](docs/FUNCIONALIDADES.md)
 
 ## Overview
 
-Upload audio/video (or a link), convert and transcribe it with an AI provider chain, then generate documents (reports/forms) from reusable templates and export them to **DOCX/PDF**. The web app includes authentication, billing and transactional email; the same core also runs as a local desktop app.
+Upload audio/video (or a link), or **record a meeting while it happens**, then transcribe it with an AI provider chain and generate documents (minutes, reports, forms) from reusable templates, exported to **DOCX/PDF**. During a call, the **live mode** transcribes in near real time and suggests replies. The web app includes authentication, billing and transactional email; the same core also runs as a local desktop app.
 
 ## Architecture (monorepo)
 
 ```
 frontend/   # Next.js 15 + React 19 web app (SaaS)
 backend/    # FastAPI service (transcription, AI, media, OCR, exports)
-electron/   # Electron desktop packaging (Windows)
+electron/   # Electron desktop packaging (Windows), system-audio capture and hotkeys
+deploy/     # Vercel packaging for the FastAPI backend (personal web mode)
 docs/       # additional documentation
 ```
 
@@ -30,7 +33,7 @@ docs/       # additional documentation
 - **FastAPI + Uvicorn**, Pydantic settings, `python-multipart`
 - **SQLAlchemy 2.0 + Alembic** migrations on **PostgreSQL** (`psycopg`)
 - **JWT auth** (PyJWT)
-- **AI / transcription (multi-provider):** OpenAI, Google Gemini (`google-genai`), Anthropic, and local **Whisper** (`openai-whisper`)
+- **AI / transcription (multi-provider):** OpenAI (incl. `gpt-4o-transcribe-diarize` for speaker separation), Google Gemini (`google-genai`), Anthropic Claude, and local **Whisper** (`openai-whisper`)
 - **Media pipeline:** `ffmpeg-python` + `yt-dlp` (download + convert audio/video)
 - **OCR:** `pytesseract` + Pillow
 - **Document export:** `python-docx` (DOCX) and `reportlab` / `pypdf` (PDF)
@@ -39,12 +42,17 @@ docs/       # additional documentation
 
 ### Desktop (`electron/`)
 - Electron packaging of the app for Windows (bundles the frontend and the FastAPI backend).
+- `preload.cjs` + `recording-bridge.cjs`: system-audio loopback for meeting recording, screen/window picker, global hotkeys (`Ctrl+Shift+S` capture, `Ctrl+Shift+M` marker, `Ctrl+Shift+A` AI suggestion), Windows screenshot import and the always-on-top live window.
 
 ## Features
 
+- **Meeting recording** (`/gravar`): microphone + meeting audio (Windows loopback on desktop, tab/screen audio in Chrome/Edge), chunked upload every 10 s with crash recovery, and screenshots (button, global hotkey, slide-change detection, interval, Windows screenshots, paste)
+- **Speaker separation**: diarized transcript, "you" detected from microphone energy, AI-suggested names you can edit, click-to-play timestamps
+- **Audio + screenshots analysis**: the AI describes each screenshot and places it on the conversation timeline; automatic minutes with decisions and action items
+- **Live mode**: transcription every ~6 s during the call, automatic reply suggestions when someone asks a question, optional context about you, floating window
 - Upload audio/video or provide a link (yt-dlp), with conversion via ffmpeg
-- Transcription with a multi-provider chain (OpenAI / Gemini / Anthropic / local Whisper)
-- Report & form generation from reusable templates
+- Transcription with a multi-provider chain (OpenAI / Gemini / local Whisper)
+- Summaries ("Ver resumo", "Ver resumo detalhado") and report & form generation from reusable templates
 - Export to **DOCX** and **PDF**
 - OCR to extract text from images/PDFs
 - Authentication (credentials + Google OAuth), JWT sessions
@@ -90,6 +98,8 @@ The `electron/` package bundles the Next.js frontend and the FastAPI backend int
 | Login | none | required (password or Google) |
 | Sign-up | n/a | invite code only |
 | Credit limit | none — the AI key belongs to the user | free plan, `TRIAL_CREDIT_LIMIT` (default 20 credits ≈ 1 credit per minute of media) |
+
+A third mode, **personal web** (`NEXT_PUBLIC_PERSONAL_MODE=1` + `SITE_PASSWORD_HASH`), replaces accounts and billing with a single long password. See [Personal web deployment](#personal-web-deployment-vercel-single-password).
 
 Desktop mode is detected from `APP_ENV=desktop` (sent by Electron) or `DESKTOP_MODE=true`.
 
@@ -141,7 +151,25 @@ Required environment variables:
 After the first deploy, apply the migrations against the production database
 (`npx prisma migrate deploy` from `frontend/`) and create the invite codes.
 
+## Personal web deployment (Vercel, single password)
+
+Both the Next.js frontend and the FastAPI backend run on Vercel, with Postgres (Neon) for data and recording files (`FILE_STORAGE=database`). Access is locked behind one 64-character password:
+
+- **Vercel side:** only its scrypt hash (`SITE_PASSWORD_HASH`) is stored there.
+- **Next.js middleware:** gates every page and `/api` route with a signed `HttpOnly` cookie.
+- **Backend `ApiGuardMiddleware`:** requires the site's `Origin` plus a 5-minute signed token on every call. Direct Postman/curl requests get 403/401.
+
+```bash
+node frontend/scripts/gerar-senha-site.mjs "C:/outside/the/repo/password.txt" > hash.txt
+node deploy/vercel-backend/stage.mjs
+cd .vercel-build/backend && vercel deploy --prod
+cd ../../frontend && vercel deploy --prod
+```
+
+Environment variables, limits (no Whisper/ffmpeg, 4.5 MB request cap, 300 s processing) and password rotation: [docs/deploy-web-pessoal.md](docs/deploy-web-pessoal.md).
+
 ## Notes
 
 - The project is structured as a commercial-ready SaaS (auth, billing, email) while still being runnable fully locally.
-- Configure provider API keys (OpenAI / Gemini / Anthropic) in the backend `.env`; if cloud providers are unavailable, local Whisper is used.
+- Configure provider API keys (OpenAI / Gemini / Anthropic) in the backend `.env` or in **Ajustes**; if cloud providers are unavailable, local Whisper is used (desktop only).
+- Speaker separation and the live mode need an OpenAI or Gemini key; with Whisper only, meetings are split into "you" vs. "participants".
