@@ -37,6 +37,7 @@ frontend/.next/
 frontend/tsconfig.tsbuildinfo
 backend/.pytest_cache/
 backend/data/
+/data/
 storage/
 dist-electron/
 electron/resources/backend/
