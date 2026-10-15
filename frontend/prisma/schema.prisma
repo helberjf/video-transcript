@@ -82,7 +82,6 @@ model Workspace {
   clientName            String   @map("client_name")
   ownerName             String   @map("owner_name")
   ownerEmail            String   @map("owner_email")
-  cnpj                  String?
   segment               String
   plan                  String   @default("trial")
   billingStatus         String   @default("trialing") @map("billing_status")

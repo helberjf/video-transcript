@@ -76,7 +76,7 @@ export default function ForgotPasswordPage() {
           <Link href="/login" className="text-slate hover:underline">
             Voltar ao login
           </Link>
-          <Link href="/register" className="text-aqua hover:underline">
+          <Link href="/cadastro" className="text-aqua hover:underline">
             Criar conta
           </Link>
         </div>
