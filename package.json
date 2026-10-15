@@ -29,6 +29,8 @@
     },
     "files": [
       "electron/main.cjs",
+      "electron/recording-bridge.cjs",
+      "electron/preload.cjs",
       "package.json"
     ],
     "extraResources": [

@@ -13,8 +13,22 @@ class Base(DeclarativeBase):
     pass
 
 
+def _sqlalchemy_url(url: str) -> str:
+    """Neon/Supabase entregam postgres:// sem driver; o driver instalado e o psycopg 3."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix) :]
+    return url
+
+
 connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-engine = create_engine(settings.database_url, future=True, connect_args=connect_args)
+engine = create_engine(
+    _sqlalchemy_url(settings.database_url),
+    future=True,
+    connect_args=connect_args,
+    # Funcoes serverless congelam entre requisicoes: conexoes paradas podem ter sido fechadas.
+    pool_pre_ping=True,
+)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
 
 
@@ -44,6 +58,14 @@ def run_startup_migrations() -> None:
             connection.execute(text("ALTER TABLE uploads ADD COLUMN source_type VARCHAR(40)"))
         if upload_columns and "source_url" not in upload_columns:
             connection.execute(text("ALTER TABLE uploads ADD COLUMN source_url VARCHAR(2000)"))
+        for column, ddl in (
+            ("transcript_segments", "TEXT"),
+            ("speakers", "TEXT"),
+            ("analysis_mode", "VARCHAR(20)"),
+            ("recording_meta", "TEXT"),
+        ):
+            if upload_columns and column not in upload_columns:
+                connection.execute(text(f"ALTER TABLE uploads ADD COLUMN {column} {ddl}"))
 
         report_columns = {
             row[1]

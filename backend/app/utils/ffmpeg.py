@@ -84,3 +84,26 @@ def probe_duration_seconds(source_path: str | Path) -> float | None:
     payload = json.loads(result.stdout or "{}")
     duration = payload.get("format", {}).get("duration")
     return float(duration) if duration else None
+
+
+def transcode_for_transcription(source_path: str | Path, output_path: str | Path) -> Path:
+    """Opus mono 16 kHz a 24 kbps (~11 MB por hora): cabe no limite de 25 MB da OpenAI ate ~2 h."""
+    target = Path(output_path)
+    command = [
+        _resolve_binary("ffmpeg"),
+        "-y",
+        "-i",
+        str(source_path),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-c:a",
+        "libopus",
+        "-b:a",
+        "24k",
+        str(target),
+    ]
+    run_subprocess(command, timeout=1800)
+    return target

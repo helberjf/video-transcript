@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BrandLoader, LoadingDots } from "@/components/brand-loader";
+import { MeetingPanel } from "@/components/meeting-panel";
 import { SectionHeader } from "@/components/section-header";
 import { SelectableWords, type SelectableWordToken } from "@/components/selectable-words";
 import { StatusBadge } from "@/components/status-badge";
@@ -17,6 +18,8 @@ import type { DocumentModelRead, ProcessingStatus, ReportExportExtension, Report
 const DEFAULT_TEMPLATE_NAME = "Resumo objetivo";
 /** Modelo do botão "Ver resumo detalhado"; espelha o seed do backend. */
 const DETAILED_SUMMARY_TEMPLATE_NAME = "Resumo detalhado";
+/** Modelo usado no resumo automático de reuniões gravadas; espelha o seed do backend. */
+const MEETING_TEMPLATE_NAME = "Reunião: ata e próximos passos";
 /** Usado só se o workspace não tiver o modelo (ex.: apagado pelo usuário). */
 const DETAILED_SUMMARY_FALLBACK_REQUEST =
   "Escreva um resumo detalhado e didático, pensado para que quem ler consiga ensinar a outra pessoa tudo o que foi dito. " +
@@ -478,7 +481,7 @@ export default function UploadDetailPage() {
   const uploadId = useMemo(() => String(params.id), [params.id]);
   const shouldGuideToModel = searchParams.get("next") === "model";
   const wantsAutoSummary = searchParams.get("resumo") === "1";
-  const { upload, reports, setReports, loading, error } = usePollUpload(uploadId);
+  const { upload, reports, setReports, setUpload, loading, error } = usePollUpload(uploadId);
   const [templates, setTemplates] = useState<ReportTemplate[]>([]);
   const [documentModels, setDocumentModels] = useState<DocumentModelRead[]>([]);
   const [documentModelId, setDocumentModelId] = useState("");
@@ -533,6 +536,20 @@ export default function UploadDetailPage() {
       .catch(() => undefined);
   }, []);
 
+  // Reunião gravada: o resumo automático sai no formato de ata com interlocutores.
+  const isMeeting = upload?.source_type === "meeting";
+  const meetingTemplateAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!isMeeting || meetingTemplateAppliedRef.current || templates.length === 0) {
+      return;
+    }
+    const meetingTemplate = templates.find((template) => matchesTemplateName(template.name, MEETING_TEMPLATE_NAME));
+    if (meetingTemplate) {
+      meetingTemplateAppliedRef.current = true;
+      setTemplateId(meetingTemplate.id);
+    }
+  }, [isMeeting, templates]);
+
   const selectedDocumentModel = useMemo(
     () => documentModels.find((documentModel) => documentModel.id === documentModelId) ?? null,
     [documentModelId, documentModels],
@@ -551,7 +568,7 @@ export default function UploadDetailPage() {
       reports.find((report) => (template && report.template_id === template.id) || matchesTemplateName(report.title, templateName)) ?? null
     );
   };
-  const summaryReport = findReportOfTemplate(DEFAULT_TEMPLATE_NAME);
+  const summaryReport = findReportOfTemplate(DEFAULT_TEMPLATE_NAME) ?? (isMeeting ? findReportOfTemplate(MEETING_TEMPLATE_NAME) : null);
   const detailedSummaryReport = findReportOfTemplate(DETAILED_SUMMARY_TEMPLATE_NAME);
 
   const createReport = async (titleOverride?: string) => {
@@ -871,6 +888,7 @@ export default function UploadDetailPage() {
               ) : (
                 <ProcessingState status={upload.status} />
               )}
+              {isMeeting && upload.status === "completed" ? <MeetingPanel upload={upload} onUploadChange={setUpload} /> : null}
               <p className="mt-4 text-xs leading-6 text-slate">Use o modo leitura para abrir a transcrição em uma visualização mais confortável, com coluna mais estreita e tipografia ampliada.</p>
               {summaryError ? <p className="mt-4 rounded-2xl bg-ember/10 px-4 py-3 text-sm text-ember">{summaryError}</p> : null}
               {copyFeedback ? <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate">{copyFeedback}</p> : null}

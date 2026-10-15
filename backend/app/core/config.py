@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     temp_dir: Path = PROJECT_DIR / "storage" / "temp"
 
     max_upload_mb: int = 500
+    # "local" (disco) no desktop; "database" na Vercel, onde o disco nao persiste entre requisicoes.
+    file_storage: str = "local"
+    # Forca ligar/desligar os creditos; sem valor, so a web cobra (desktop nao).
+    credit_limits: bool | None = None
     auto_cleanup_temp_files: bool = True
     # No modo desktop as chaves de IA sao do proprio usuario, entao nao existe limite
     # de plano. Quando nao definido, e inferido de APP_ENV=desktop (Electron).
@@ -54,7 +58,7 @@ class Settings(BaseSettings):
     openai_report_model: str = "gpt-4.1-mini"
     gemini_transcription_model: str = "gemini-2.5-flash"
     gemini_report_model: str = "gemini-2.5-flash"
-    claude_report_model: str = "claude-3-5-sonnet-latest"
+    claude_report_model: str = "claude-sonnet-5-5"
     transcription_provider_order: str = "openai,gemini,whisper"
     report_provider_order: str = "openai,claude,gemini,local"
     provider_timeout_seconds: int = 120
@@ -71,6 +75,8 @@ class Settings(BaseSettings):
     @property
     def credit_limits_enabled(self) -> bool:
         """So a versao web cobra creditos: no desktop a chave de IA e do usuario."""
+        if self.credit_limits is not None:
+            return self.credit_limits
         return not self.is_desktop
 
     @property

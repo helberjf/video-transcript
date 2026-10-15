@@ -82,10 +82,14 @@ Thumbs.db
 # Modelos do Whisper (grandes)
 *.pt
 *.bin
-models/
+/models/
 
 cookies.txt
 cookies.txt.bak
 
 *storage/
 storage/
+
+# Montagem do backend para a Vercel e vinculos da CLI
+.vercel-build/
+.vercel/

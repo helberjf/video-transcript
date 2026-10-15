@@ -10,6 +10,9 @@ import type {
   InstagramLoginStatus,
   InstagramPostReadPayload,
   InstagramPostReadResponse,
+  MeetingAnalysisMode,
+  MeetingCapture,
+  CaptureTrigger,
   FormDetectFieldsPayload,
   FormDetectFieldsResponse,
   FormExportPayload,
@@ -514,4 +517,126 @@ export function startInstagramPostAnalyze(payload: InstagramAnalyzePayload) {
 
 export function getInstagramPostAnalyze(jobId: string) {
   return request<InstagramAnalyzeJobStatus>(`/instagram/post/analyze/${jobId}`);
+}
+
+
+export function startRecording(payload: { title?: string; language?: string; capture_screens?: boolean }) {
+  return request<{ id: string }>("/recordings", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function uploadRecordingChunk(uploadId: string, sequence: number, chunk: Blob): Promise<void> {
+  const authHeaders = await getApiAuthHeaders();
+  const response = await fetch(`${API_BASE}/recordings/${uploadId}/chunks/${sequence}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/octet-stream", ...authHeaders },
+    body: chunk,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.json().catch(() => null)));
+  }
+}
+
+export async function uploadRecordingCapture(
+  uploadId: string,
+  image: Blob,
+  offsetSeconds: number,
+  trigger: CaptureTrigger,
+): Promise<MeetingCapture> {
+  const authHeaders = await getApiAuthHeaders();
+  const formData = new FormData();
+  formData.append("image", image, `captura.${image.type === "image/jpeg" ? "jpg" : "png"}`);
+  formData.append("offset_seconds", String(offsetSeconds));
+  formData.append("trigger", trigger);
+  const response = await fetch(`${API_BASE}/recordings/${uploadId}/captures`, {
+    method: "POST",
+    headers: authHeaders,
+    body: formData,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.json().catch(() => null)));
+  }
+  return (await response.json()) as MeetingCapture;
+}
+
+export function finishRecording(
+  uploadId: string,
+  payload: {
+    analysis_mode: MeetingAnalysisMode;
+    duration_seconds: number;
+    energy: number[][];
+    markers: { offset_seconds: number; note?: string }[];
+    has_system_audio: boolean;
+  },
+) {
+  return request<{ id: string; status: string; message: string }>(`/recordings/${uploadId}/finish`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function reprocessRecording(uploadId: string, analysisMode: MeetingAnalysisMode) {
+  return request<{ id: string; status: string; message: string }>(`/recordings/${uploadId}/reprocess`, {
+    method: "POST",
+    body: JSON.stringify({ analysis_mode: analysisMode }),
+  });
+}
+
+export function getInterruptedRecordings() {
+  return request<UploadItem[]>("/recordings/interrupted");
+}
+
+export function getUploadCaptures(uploadId: string) {
+  return request<MeetingCapture[]>(`/uploads/${uploadId}/captures`);
+}
+
+export function updateCapture(captureId: string, included: boolean) {
+  return request<MeetingCapture>(`/captures/${captureId}`, { method: "PATCH", body: JSON.stringify({ included }) });
+}
+
+export function deleteCapture(captureId: string) {
+  return request<{ success: boolean }>(`/captures/${captureId}`, { method: "DELETE" });
+}
+
+export function renameSpeakers(uploadId: string, names: Record<string, string>) {
+  return request<UploadItem>(`/uploads/${uploadId}/speakers`, { method: "PATCH", body: JSON.stringify({ names }) });
+}
+
+/** Imagens e audio exigem cabecalhos de autenticacao: baixamos como blob e geramos uma URL local. */
+export async function fetchProtectedObjectUrl(path: string): Promise<string> {
+  const authHeaders = await getApiAuthHeaders();
+  const response = await fetch(`${API_BASE}${path}`, { headers: authHeaders, cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Falha ao carregar arquivo");
+  }
+  return URL.createObjectURL(await response.blob());
+}
+
+
+export async function liveTranscribe(audio: Blob, language: string, prompt: string): Promise<{ text: string; engine: string }> {
+  const authHeaders = await getApiAuthHeaders();
+  const formData = new FormData();
+  formData.append("audio", audio, "janela.webm");
+  formData.append("language", language);
+  if (prompt) {
+    formData.append("prompt", prompt);
+  }
+  const response = await fetch(`${API_BASE}/live/transcribe`, {
+    method: "POST",
+    headers: authHeaders,
+    body: formData,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.json().catch(() => null)));
+  }
+  return (await response.json()) as { text: string; engine: string };
+}
+
+export function liveSuggest(payload: { lines: { speaker: string; text: string }[]; context?: string; focus?: string }) {
+  return request<{ suggestion: string; engine: string; seconds: number }>("/live/suggest", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }

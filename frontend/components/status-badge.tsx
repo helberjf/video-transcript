@@ -1,6 +1,7 @@
 import type { ProcessingStatus } from "@/types/api";
 
 const styles: Record<ProcessingStatus, string> = {
+  recording: "border-rose-300/30 bg-rose-300/10 text-rose-200",
   uploaded: "border-sand/30 bg-sand/10 text-sand",
   converting: "border-amber-300/30 bg-amber-300/10 text-amber-200",
   transcribing: "border-sky-300/30 bg-sky-300/10 text-sky-200",

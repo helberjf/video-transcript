@@ -462,8 +462,13 @@ def list_uploads(db: Session, workspace_id: str = "local-workspace") -> list[Upl
 def delete_upload(db: Session, upload_id: str, workspace_id: str = "local-workspace") -> None:
     repository = UploadRepository(db)
     upload = get_upload_or_404(db, upload_id, workspace_id)
-    safe_unlink(upload.original_path)
-    safe_unlink(upload.converted_path)
+    if upload.source_type == "meeting":
+        from app.services.recording_service import delete_recording_files
+
+        delete_recording_files(upload.id, db)
+    else:
+        safe_unlink(upload.original_path)
+        safe_unlink(upload.converted_path)
     repository.delete(upload)
 
 

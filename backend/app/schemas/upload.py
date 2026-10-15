@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+import json
+
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import FileType, ProcessingStatus, TranscriptionEngine
 from app.schemas.common import ORMModel
@@ -47,7 +49,21 @@ class UploadDetail(ORMModel):
     report_count: int
     created_at: datetime
     updated_at: datetime
+    transcript_segments: list[dict] | None = None
+    speakers: list[dict] | None = None
+    analysis_mode: str | None = None
     reports: list[ReportRead] = Field(default_factory=list)
+
+    @field_validator("transcript_segments", "speakers", mode="before")
+    @classmethod
+    def _parse_json_list(cls, value):
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except ValueError:
+                return None
+            return parsed if isinstance(parsed, list) else None
+        return value
 
 
 class ProcessRequest(BaseModel):

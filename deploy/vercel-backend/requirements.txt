@@ -1,0 +1,20 @@
+# Dependencias do backend na Vercel (modo pessoal web).
+# Sem openai-whisper/torch e playwright: passariam do limite de 500 MB da funcao Python.
+# Transcricao e analise usam so as APIs (OpenAI / Gemini / Claude).
+fastapi==0.115.6
+python-multipart==0.0.17
+pydantic-settings==2.7.0
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
+PyJWT==2.10.1
+httpx==0.28.1
+openai==3.31.0
+google-genai==0.8.0
+anthropic==0.49.0
+yt-dlp==2026.3.17
+pillow==11.1.0
+pytesseract==0.3.13
+python-docx==1.1.2
+reportlab==4.2.5
+pypdf==5.1.0
+truststore==0.10.4

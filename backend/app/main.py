@@ -7,6 +7,7 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 from app.api.router import api_router  # noqa: E402
+from app.core.api_guard import ApiGuardMiddleware  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.database import Base, SessionLocal, engine, run_startup_migrations  # noqa: E402
 from app.models import DocumentModel  # noqa: E402
@@ -16,6 +17,8 @@ from app.services.seed_service import seed_report_templates  # noqa: E402
 settings = get_settings()
 app = FastAPI(title=settings.app_name, version="1.0.0")
 
+# Adicionado antes do CORS para que as respostas 401/403 tambem levem os cabecalhos CORS.
+app.add_middleware(ApiGuardMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,

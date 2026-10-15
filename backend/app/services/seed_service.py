@@ -8,6 +8,7 @@ DEFAULT_SEED_WORKSPACE_ID = "local-workspace"
 
 DEFAULT_TEMPLATE_NAME = "Resumo objetivo"
 DETAILED_SUMMARY_TEMPLATE_NAME = "Resumo detalhado"
+MEETING_TEMPLATE_NAME = "Reunião: ata e próximos passos"
 
 DEFAULT_TEMPLATES = [
     {
@@ -80,6 +81,35 @@ DEFAULT_TEMPLATES = [
         "base_prompt": "Transforme a transcrição em uma ata de reunião estruturada com participantes, agenda, decisões, pendências e responsáveis.",
         "example_output": "# Ata de reunião\n\n## Participantes\n- Nome / área\n\n## Agenda\n- Tema 1\n\n## Decisões\n- Decisão 1\n\n## Pendências e responsáveis\n- Pendência: responsável\n\n## Próximos passos\n- Passo 1",
         "complementary_instructions": "Se algum dado não estiver claro, sinalize como não identificado.",
+        "output_format": ReportFormat.MARKDOWN,
+        "is_favorite": True,
+    },
+    {
+        "name": MEETING_TEMPLATE_NAME,
+        "description": "Para reuniões gravadas: quem disse o quê, decisões, itens de ação e o que foi mostrado na tela.",
+        "category": "reuniao",
+        "base_prompt": (
+            "A transcrição é de uma reunião gravada, com cada fala marcada por [hh:mm:ss] e pelo nome do interlocutor. "
+            "Linhas '[Captura de tela N]' descrevem o que estava sendo mostrado na tela naquele momento. "
+            "Escreva a ata da reunião: resumo executivo, participantes e a contribuição de cada um, decisões tomadas, "
+            "itens de ação com responsável, prazo e o minuto em que foram combinados, pendências e riscos, "
+            "e os principais tópicos na ordem em que aconteceram. Quando houver capturas de tela, use o que foi "
+            "mostrado para completar o contexto e cite a captura. Atribua cada fala a quem realmente a disse."
+        ),
+        "example_output": (
+            "# Ata da reunião\n\n"
+            "## Resumo executivo\nDo que se tratou e o que ficou decidido, em até 5 linhas.\n\n"
+            "## Participantes\n- **Nome**: papel na conversa e principais contribuições\n\n"
+            "## Decisões\n- Decisão (00:12:30, proposta por Nome)\n\n"
+            "## Itens de ação\n| Responsável | Ação | Prazo | Minuto |\n|---|---|---|---|\n| Nome | O que fazer | data ou 'não definido' | 00:15:10 |\n\n"
+            "## Pendências e riscos\n- Item em aberto\n\n"
+            "## Tópicos discutidos\n### 00:00 Tema\nO que foi dito, por quem, e o que foi mostrado na tela.\n\n"
+            "## Mostrado na tela\n- Captura 2 (00:08:40): slide com ..."
+        ),
+        "complementary_instructions": (
+            "Não invente responsáveis nem prazos: escreva 'não definido' quando a conversa não disser. "
+            "Se só houver 'Você' e 'Participantes', mantenha esses rótulos."
+        ),
         "output_format": ReportFormat.MARKDOWN,
         "is_favorite": True,
     },

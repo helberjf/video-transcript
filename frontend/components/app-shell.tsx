@@ -9,6 +9,7 @@ import { useWorkspace } from "@/hooks/use-workspace";
 
 const navigation = [
   { href: "/", label: "Inicio", description: "Acoes rapidas" },
+  { href: "/gravar", label: "Gravar reunião", description: "Áudio e telas" },
   { href: "/uploads", label: "Processamentos/Relatórios", description: "Audio e video" },
   { href: "/history", label: "Historico", description: "Processamentos" },
   { href: "/templates", label: "Modelos", description: "Documentos base" },
@@ -22,8 +23,15 @@ const navigation = [
 ];
 
 const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
+// Web pessoal na Vercel: protegida por uma senha só, sem contas, planos ou cobrança.
+const isPersonalMode = process.env.NEXT_PUBLIC_PERSONAL_MODE === "1";
 const desktopHiddenRoutes = new Set(["/pricing", "/billing"]);
-const visibleNavigation = isDesktopMode ? navigation.filter((item) => !desktopHiddenRoutes.has(item.href)) : navigation;
+const personalHiddenRoutes = new Set(["/pricing", "/billing", "/login"]);
+const visibleNavigation = isPersonalMode
+  ? navigation.filter((item) => !personalHiddenRoutes.has(item.href))
+  : isDesktopMode
+    ? navigation.filter((item) => !desktopHiddenRoutes.has(item.href))
+    : navigation;
 
 function getPageLabel(pathname: string): string {
   const activeItem = visibleNavigation
@@ -41,10 +49,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const planLabel = workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "business" ? "Business" : workspace.plan === "pro" ? "Pro" : "Trial";
   const showPublicLayout =
     !isDesktopMode &&
+    !isPersonalMode &&
     ((pathname === "/" && status !== "authenticated") ||
       pathname.startsWith("/login") ||
       pathname.startsWith("/pricing") ||
       (pathname.startsWith("/billing") && status !== "authenticated"));
+
+  // Janela flutuante do modo ao vivo: sem menu, ocupa a janela pequena inteira.
+  if (pathname.startsWith("/ao-vivo") || pathname.startsWith("/entrar")) {
+    return <main className="min-h-screen bg-midnight">{children}</main>;
+  }
 
   if (showPublicLayout) {
     return <main className="min-h-screen bg-mesh px-4 py-5 sm:px-6 lg:px-8">{children}</main>;
@@ -122,7 +136,19 @@ export function AppShell({ children }: { children: ReactNode }) {
               <p className="mt-1 text-xs text-slate">{workspace.clientName} - {workspace.segment}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {!isDesktopMode && status === "authenticated" ? (
+              {isPersonalMode ? (
+                <button
+                  className="button-secondary px-4 py-2"
+                  type="button"
+                  onClick={() =>
+                    void fetch("/api/sair", { method: "POST" }).finally(() => {
+                      window.location.href = "/entrar";
+                    })
+                  }
+                >
+                  Sair
+                </button>
+              ) : !isDesktopMode && status === "authenticated" ? (
                 <button className="button-secondary px-4 py-2" type="button" onClick={() => void signOut({ callbackUrl: "/" })}>
                   Sair
                 </button>

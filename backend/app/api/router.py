@@ -6,6 +6,8 @@ from app.api.routes import (
     forms,
     history,
     instagram,
+    live,
+    recordings,
     report_templates,
     reports,
     settings,
@@ -25,3 +27,5 @@ api_router.include_router(history.router)
 api_router.include_router(settings.router)
 api_router.include_router(cookies.router)
 api_router.include_router(instagram.router)
+api_router.include_router(recordings.router)
+api_router.include_router(live.router)

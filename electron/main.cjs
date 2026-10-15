@@ -5,6 +5,8 @@ const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 
+const { confirmCloseWhileRecording, setupRecordingBridge } = require("./recording-bridge.cjs");
+
 const BACKEND_PORT = Number(process.env.ELECTRON_BACKEND_PORT || 38500);
 const FRONTEND_PORT = Number(process.env.ELECTRON_FRONTEND_PORT || 38501);
 const STARTUP_TIMEOUT_MS = 120000;
@@ -204,7 +206,16 @@ function createLoadingWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, "preload.cjs"),
+      // A gravacao continua com a janela minimizada: timers de captura nao podem ser estrangulados.
+      backgroundThrottling: false,
     },
+  });
+
+  mainWindow.on("close", (event) => {
+    if (!isShuttingDown && !confirmCloseWhileRecording(mainWindow)) {
+      event.preventDefault();
+    }
   });
 
   const html = `
@@ -495,6 +506,11 @@ app.whenReady().then(() => {
     return;
   }
   log("Electron pronto.");
+  setupRecordingBridge({
+    getWindow: () => mainWindow,
+    allowedOrigins: () => [`http://127.0.0.1:${FRONTEND_PORT}`, `http://localhost:${FRONTEND_PORT}`],
+    log,
+  });
   void bootApplication().catch((error) => {
     showStartupError(error);
   });

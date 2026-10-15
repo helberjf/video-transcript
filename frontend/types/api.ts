@@ -1,11 +1,12 @@
 export type FileType = "audio" | "video";
-export type ProcessingStatus = "uploaded" | "converting" | "transcribing" | "generating_report" | "completed" | "error";
+export type ProcessingStatus = "recording" | "uploaded" | "converting" | "transcribing" | "generating_report" | "completed" | "error";
 export type Engine = "openai" | "gemini" | "claude" | "whisper" | "none";
 export type ReportFormat = "markdown" | "text";
 export type TranscriptionProvider = "openai" | "gemini" | "whisper";
 export type ReportProvider = "openai" | "claude" | "gemini" | "local";
 export type ReportExportExtension = "md" | "txt" | "docx" | "pdf";
 export type RemoteMediaSource = "youtube" | "instagram";
+export type UploadSourceType = RemoteMediaSource | "meeting";
 
 export interface UploadItem {
   id: string;
@@ -16,7 +17,7 @@ export interface UploadItem {
   mime_type: string;
   original_path: string;
   converted_path: string | null;
-  source_type: RemoteMediaSource | null;
+  source_type: UploadSourceType | null;
   source_url: string | null;
   transcription_text: string | null;
   transcription_engine: Engine;
@@ -29,6 +30,42 @@ export interface UploadItem {
   created_at: string;
   updated_at: string;
   reports?: ReportRead[];
+  transcript_segments?: TranscriptSegment[] | null;
+  speakers?: MeetingSpeaker[] | null;
+  analysis_mode?: MeetingAnalysisMode | null;
+}
+
+export type MeetingAnalysisMode = "audio" | "audio_images";
+
+export interface TranscriptSegment {
+  start: number;
+  end: number;
+  speaker: string;
+  text: string;
+  self_ratio?: number | null;
+}
+
+export interface MeetingSpeaker {
+  label: string;
+  name: string;
+  is_self: boolean;
+  suggested_name?: string | null;
+}
+
+export type CaptureTrigger = "manual" | "hotkey" | "interval" | "scene_change" | "os_screenshot" | "paste";
+
+export interface MeetingCapture {
+  id: string;
+  upload_id: string;
+  offset_seconds: number;
+  trigger: CaptureTrigger;
+  width: number | null;
+  height: number | null;
+  is_duplicate: boolean;
+  included: boolean;
+  description: string | null;
+  vision_engine: string | null;
+  created_at: string;
 }
 
 export interface UploadCreateResponse {

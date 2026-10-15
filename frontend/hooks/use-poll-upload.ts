@@ -62,5 +62,5 @@ export function usePollUpload(uploadId: string) {
     };
   }, [uploadId]);
 
-  return { upload, reports, loading, error, setReports };
+  return { upload, reports, loading, error, setReports, setUpload };
 }
