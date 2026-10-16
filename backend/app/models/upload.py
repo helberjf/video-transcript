@@ -38,6 +38,8 @@ class Upload(Base):
     speakers: Mapped[str | None] = mapped_column(Text, nullable=True)
     analysis_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
     recording_meta: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Resumo, decisoes, checklist e perguntas gerados pela IA (JSON).
+    meeting_insights: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

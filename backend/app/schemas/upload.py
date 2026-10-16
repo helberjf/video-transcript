@@ -52,7 +52,19 @@ class UploadDetail(ORMModel):
     transcript_segments: list[dict] | None = None
     speakers: list[dict] | None = None
     analysis_mode: str | None = None
+    meeting_insights: dict | None = None
     reports: list[ReportRead] = Field(default_factory=list)
+
+    @field_validator("meeting_insights", mode="before")
+    @classmethod
+    def _parse_json_object(cls, value):
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except ValueError:
+                return None
+            return parsed if isinstance(parsed, dict) else None
+        return value
 
     @field_validator("transcript_segments", "speakers", mode="before")
     @classmethod

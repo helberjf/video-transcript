@@ -49,3 +49,15 @@ class CaptureUpdateRequest(BaseModel):
 
 class SpeakerRenameRequest(BaseModel):
     names: dict[str, str]
+
+
+class ChecklistItemUpdate(BaseModel):
+    feito: bool
+
+
+class ChecklistItemCreate(BaseModel):
+    tarefa: str = Field(min_length=1, max_length=300)
+
+
+class MeetingQuestion(BaseModel):
+    pergunta: str = Field(min_length=1, max_length=1000)

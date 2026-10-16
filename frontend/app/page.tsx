@@ -31,13 +31,14 @@ import { appendWorkspaceActivity } from "@/lib/workspace-store";
 const ACCEPTED_MEDIA = ".mp4,.mov,.mkv,.avi,.webm,.mp3,.wav,.m4a,.aac,.ogg,.flac";
 const ACCEPTED_MODEL_DOCUMENTS = ".txt,.md,.markdown,.csv,.odt,.docx,.pdf,.png,.jpg,.jpeg,.webp,image/*";
 const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
+const isPersonalMode = process.env.NEXT_PUBLIC_PERSONAL_MODE === "1";
 
 
 export default function DashboardPage() {
   const router = useRouter();
   const { workspace, saveWorkspace } = useWorkspace();
   const { status } = useSession();
-  const showDashboard = isDesktopMode || status === "authenticated";
+  const showDashboard = isDesktopMode || isPersonalMode || status === "authenticated";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modelFileInputRef = useRef<HTMLInputElement | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -250,6 +251,32 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <section className="panel relative overflow-hidden p-6 sm:p-8">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-sand/50" />
+        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sand">Reuniões com IA</p>
+            <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+              Grave a reunião. Receba o resumo e o checklist.
+            </h1>
+            <p className="max-w-2xl text-sm leading-6 text-slate">
+              Escuta a sua voz e a dos participantes, sugere respostas ao vivo e, quando você para, a IA entrega resumo, decisões e as
+              tarefas com responsável e prazo. Depois é só perguntar o que quiser sobre a reunião.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <Link className="button-primary flex w-full items-center justify-center py-4 text-lg" href="/gravar">
+              ● Gravar reunião
+            </Link>
+            <ol className="grid grid-cols-3 gap-2 text-center text-[11px] text-slate">
+              <li className="rounded-lg border border-white/10 px-2 py-2">1. Gravar reunião</li>
+              <li className="rounded-lg border border-white/10 px-2 py-2">2. Iniciar gravação</li>
+              <li className="rounded-lg border border-white/10 px-2 py-2">3. Parar e resumir</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
       <section className="panel overflow-hidden">
         <div className="grid gap-0 xl:grid-cols-[0.92fr_1.08fr]">
           <div className="space-y-6 border-b border-white/10 p-6 sm:p-7 xl:border-b-0 xl:border-r">

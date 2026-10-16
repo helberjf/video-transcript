@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BrandLoader, LoadingDots } from "@/components/brand-loader";
+import { MeetingInsightsPanel } from "@/components/meeting-insights";
 import { MeetingPanel } from "@/components/meeting-panel";
 import { SectionHeader } from "@/components/section-header";
 import { SelectableWords, type SelectableWordToken } from "@/components/selectable-words";
@@ -30,6 +31,7 @@ const PROCESSING_STEPS: { status: ProcessingStatus; label: string }[] = [
   { status: "uploaded", label: "Arquivo recebido" },
   { status: "converting", label: "Convertendo o áudio" },
   { status: "transcribing", label: "Transcrevendo" },
+  { status: "generating_report", label: "Gerando resumo e checklist" },
 ];
 
 type ReadingModePayload = {
@@ -817,6 +819,23 @@ export default function UploadDetailPage() {
             <div className="panel p-5"><p className="text-sm text-slate">Duração</p><p className="mt-2 text-lg font-semibold">{formatDuration(upload.duration_seconds)}</p></div>
             <div className="panel p-5"><p className="text-sm text-slate">Engine</p><p className="mt-2 text-lg font-semibold uppercase">{upload.transcription_engine}</p></div>
           </div>
+
+          {isMeeting ? (
+            <section className="panel p-6">
+              <h3 className="text-xl font-semibold">Resultado da reunião</h3>
+              {upload.status === "completed" || upload.status === "error" ? (
+                upload.meeting_insights ? (
+                  <div className="mt-5">
+                    <MeetingInsightsPanel upload={upload} onUploadChange={setUpload} />
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate">{upload.error_message ?? "O resumo desta reunião não foi gerado."}</p>
+                )
+              ) : (
+                <ProcessingState status={upload.status} />
+              )}
+            </section>
+          ) : null}
 
           <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
             <div className="panel p-6">

@@ -32,7 +32,22 @@ engine = create_engine(
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
 
 
+# Colunas novas de tabelas que ja existem no Postgres da web (create_all nao altera tabelas).
+POSTGRES_ADDED_COLUMNS = (
+    ("uploads", "transcript_segments", "TEXT"),
+    ("uploads", "speakers", "TEXT"),
+    ("uploads", "analysis_mode", "VARCHAR(20)"),
+    ("uploads", "recording_meta", "TEXT"),
+    ("uploads", "meeting_insights", "TEXT"),
+)
+
+
 def run_startup_migrations() -> None:
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as connection:
+            for table, column, ddl in POSTGRES_ADDED_COLUMNS:
+                connection.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {ddl}'))
+        return
     if engine.dialect.name != "sqlite":
         return
 
@@ -63,6 +78,7 @@ def run_startup_migrations() -> None:
             ("speakers", "TEXT"),
             ("analysis_mode", "VARCHAR(20)"),
             ("recording_meta", "TEXT"),
+            ("meeting_insights", "TEXT"),
         ):
             if upload_columns and column not in upload_columns:
                 connection.execute(text(f"ALTER TABLE uploads ADD COLUMN {column} {ddl}"))

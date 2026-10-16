@@ -15,9 +15,13 @@ from app.schemas.recording import (
     RecordingStartRequest,
     RecordingStartResponse,
     SpeakerRenameRequest,
+    ChecklistItemCreate,
+    ChecklistItemUpdate,
+    MeetingQuestion,
 )
 from app.schemas.upload import ProcessingResponse, UploadDetail
 from app.services import recording_service
+from app.services import meeting_insights_service
 from app.services.meeting_service import rename_speakers
 from app.services.upload_service import get_upload_or_404
 from app.workers.meeting_worker import process_meeting
@@ -153,3 +157,53 @@ def rename_speakers_endpoint(
     upload = recording_service.get_meeting_or_404(db, upload_id, workspace_id)
     rename_speakers(upload, payload.names)
     return UploadRepository(db).save(upload)
+
+
+@router.post("/uploads/{upload_id}/insights", response_model=UploadDetail)
+def regenerate_insights_endpoint(upload_id: str, db: Session = Depends(get_db), workspace_id: str = Depends(get_workspace_id)):
+    upload = recording_service.get_meeting_or_404(db, upload_id, workspace_id)
+    try:
+        meeting_insights_service.generate_insights(db, upload)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Nao foi possivel gerar o resumo: {exc}") from exc
+    return UploadRepository(db).save(upload)
+
+
+@router.patch("/uploads/{upload_id}/checklist/{index}")
+def update_checklist_endpoint(
+    upload_id: str,
+    index: int,
+    payload: ChecklistItemUpdate,
+    db: Session = Depends(get_db),
+    workspace_id: str = Depends(get_workspace_id),
+):
+    upload = recording_service.get_meeting_or_404(db, upload_id, workspace_id)
+    insights = meeting_insights_service.set_checklist_item(upload, index, payload.feito)
+    UploadRepository(db).save(upload)
+    return insights
+
+
+@router.post("/uploads/{upload_id}/checklist")
+def add_checklist_endpoint(
+    upload_id: str,
+    payload: ChecklistItemCreate,
+    db: Session = Depends(get_db),
+    workspace_id: str = Depends(get_workspace_id),
+):
+    upload = recording_service.get_meeting_or_404(db, upload_id, workspace_id)
+    insights = meeting_insights_service.add_checklist_item(upload, payload.tarefa)
+    UploadRepository(db).save(upload)
+    return insights
+
+
+@router.post("/uploads/{upload_id}/ask")
+def ask_meeting_endpoint(
+    upload_id: str,
+    payload: MeetingQuestion,
+    db: Session = Depends(get_db),
+    workspace_id: str = Depends(get_workspace_id),
+):
+    upload = recording_service.get_meeting_or_404(db, upload_id, workspace_id)
+    entry = meeting_insights_service.ask_question(db, upload, payload.pergunta)
+    UploadRepository(db).save(upload)
+    return entry

@@ -12,6 +12,7 @@ from app.models.enums import ProcessingStatus
 from app.models.upload import Upload
 from app.repositories.upload_repository import UploadRepository
 from app.services.diarization_service import transcribe_with_speakers
+from app.services.meeting_insights_service import generate_insights, mark_insights_error
 from app.services.meeting_service import (
     apply_name_suggestions,
     build_meeting_text,
@@ -23,6 +24,14 @@ from app.services.meeting_service import (
 from app.services.recording_service import read_energy, read_meta, recording_key
 from app.services.usage_service import audio_video_credits, consume_credits
 from app.utils.ffmpeg import probe_duration_seconds, transcode_for_transcription
+
+
+DEFAULT_TITLE_PREFIX = "Reuniao gravada"
+
+
+def _safe_title(value: str) -> str:
+    cleaned = "".join(char for char in value if char not in '<>:"/\\|?*').strip()
+    return cleaned[:140] or DEFAULT_TITLE_PREFIX
 
 
 def process_meeting(upload_id: str) -> None:
@@ -108,5 +117,18 @@ def _transcribe_and_analyze(db: Session, repository: UploadRepository, upload: U
         describe_captures(db, captures)
 
     upload.transcription_text = build_meeting_text(upload)
+    upload.status = ProcessingStatus.GENERATING_REPORT
+    repository.save(upload)
+
+    # Resumo + checklist saem junto com a transcricao: o usuario nao precisa pedir.
+    try:
+        insights = generate_insights(db, upload)
+        title = insights.get("titulo")
+        if title and upload.original_filename.startswith(DEFAULT_TITLE_PREFIX):
+            upload.original_filename = f"{_safe_title(title)}.webm"
+    except Exception as exc:
+        print(f"[reuniao] resumo/checklist falhou: {str(exc)[:300]}", flush=True)
+        mark_insights_error(upload, f"Nao foi possivel gerar o resumo: {exc}")
+
     upload.status = ProcessingStatus.COMPLETED
     repository.save(upload)

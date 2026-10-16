@@ -12,6 +12,8 @@ import type {
   InstagramPostReadResponse,
   MeetingAnalysisMode,
   MeetingCapture,
+  MeetingInsights,
+  MeetingQuestionAnswer,
   CaptureTrigger,
   FormDetectFieldsPayload,
   FormDetectFieldsResponse,
@@ -639,4 +641,24 @@ export function liveSuggest(payload: { lines: { speaker: string; text: string }[
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+
+export function regenerateInsights(uploadId: string) {
+  return request<UploadItem>(`/uploads/${uploadId}/insights`, { method: "POST" });
+}
+
+export function setChecklistItem(uploadId: string, index: number, feito: boolean) {
+  return request<MeetingInsights>(`/uploads/${uploadId}/checklist/${index}`, {
+    method: "PATCH",
+    body: JSON.stringify({ feito }),
+  });
+}
+
+export function addChecklistItem(uploadId: string, tarefa: string) {
+  return request<MeetingInsights>(`/uploads/${uploadId}/checklist`, { method: "POST", body: JSON.stringify({ tarefa }) });
+}
+
+export function askMeeting(uploadId: string, pergunta: string) {
+  return request<MeetingQuestionAnswer>(`/uploads/${uploadId}/ask`, { method: "POST", body: JSON.stringify({ pergunta }) });
 }

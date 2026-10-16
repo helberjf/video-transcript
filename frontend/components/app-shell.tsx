@@ -8,8 +8,8 @@ import type { ReactNode } from "react";
 import { useWorkspace } from "@/hooks/use-workspace";
 
 const navigation = [
+  { href: "/gravar", label: "Gravar reunião", description: "Resumo e checklist" },
   { href: "/", label: "Inicio", description: "Acoes rapidas" },
-  { href: "/gravar", label: "Gravar reunião", description: "Áudio e telas" },
   { href: "/uploads", label: "Processamentos/Relatórios", description: "Audio e video" },
   { href: "/history", label: "Historico", description: "Processamentos" },
   { href: "/templates", label: "Modelos", description: "Documentos base" },

@@ -33,6 +33,35 @@ export interface UploadItem {
   transcript_segments?: TranscriptSegment[] | null;
   speakers?: MeetingSpeaker[] | null;
   analysis_mode?: MeetingAnalysisMode | null;
+  meeting_insights?: MeetingInsights | null;
+}
+
+export interface MeetingChecklistItem {
+  tarefa: string;
+  responsavel: string | null;
+  prazo: string | null;
+  minuto: string | null;
+  feito: boolean;
+}
+
+export interface MeetingQuestionAnswer {
+  pergunta: string;
+  resposta: string;
+  em: string;
+  engine?: string;
+}
+
+export interface MeetingInsights {
+  titulo: string | null;
+  resumo: string;
+  decisoes: string[];
+  checklist: MeetingChecklistItem[];
+  pendencias: string[];
+  proximos_passos: string[];
+  perguntas: MeetingQuestionAnswer[];
+  erro?: string | null;
+  engine?: string;
+  gerado_em?: string;
 }
 
 export type MeetingAnalysisMode = "audio" | "audio_images";
