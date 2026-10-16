@@ -132,6 +132,8 @@ def normalize_insights(data: dict[str, Any]) -> dict[str, Any]:
         task = _str_or_none(item.get("tarefa") or item.get("task") or item.get("acao"))
         if not task:
             continue
+        # A IA as vezes devolve "enviar o orcamento"; no checklist fica melhor com inicial maiuscula.
+        task = task[0].upper() + task[1:]
         checklist.append(
             {
                 "tarefa": task,

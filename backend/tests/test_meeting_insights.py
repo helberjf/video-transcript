@@ -86,7 +86,7 @@ def test_insights_are_normalized_even_when_the_ai_varies_the_format(setup):
     assert [item["tarefa"] for item in insights["checklist"]] == [
         "Enviar orçamento",
         "Revisar a API pública",
-        "item com chave em ingles",
+        "Item com chave em ingles",
     ]
     assert insights["checklist"][0] == {
         "tarefa": "Enviar orçamento",
