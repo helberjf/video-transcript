@@ -3,8 +3,11 @@ from app.core.tls import install_system_trust_store
 # Antes de qualquer import que possa abrir conexao HTTPS.
 install_system_trust_store()
 
+import time  # noqa: E402
+
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from sqlalchemy.exc import IntegrityError, ProgrammingError  # noqa: E402
 
 from app.api.router import api_router  # noqa: E402
 from app.core.api_guard import ApiGuardMiddleware  # noqa: E402
@@ -29,10 +32,25 @@ app.add_middleware(
 )
 
 
+def _create_tables(attempts: int = 3) -> None:
+    """Na Vercel varias instancias sobem juntas; duas criando a mesma tabela nova fazem uma falhar.
+
+    A segunda tentativa encontra a tabela pronta e segue, em vez de derrubar a funcao.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            Base.metadata.create_all(bind=engine)
+            return
+        except (ProgrammingError, IntegrityError):
+            if attempt == attempts:
+                raise
+            time.sleep(0.5 * attempt)
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     _ = DocumentModel
-    Base.metadata.create_all(bind=engine)
+    _create_tables()
     run_startup_migrations()
     db = SessionLocal()
     try:

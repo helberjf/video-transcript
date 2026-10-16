@@ -37,6 +37,9 @@ Para derrubar todas as sessões abertas, troque também o `SITE_SESSION_SECRET`.
 
 ## Trocar a senha única por contas (login por usuário)
 
+> Estado atual (16/10/2026): a web já roda com contas. Admin: `ADMIN_EMAILS` no projeto `modeloia`.
+> A cópia da `AI_KEYS_ENCRYPTION_KEY` está em `Documentos\ModeloIA-chave-criptografia-web.txt` no computador onde foi criada.
+
 A web também funciona com contas: cadastro aberto, login com email/senha (e Google, se configurado),
 cada pessoa no próprio workspace e usando a **própria chave de IA**, guardada criptografada.
 
@@ -65,7 +68,10 @@ Passo a passo:
      (o admin continua vendo os dados criados no modo de senha única).
    - Opcional: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` e `RESEND_API_KEY` (email de "esqueci a senha").
    - Remova `SITE_PASSWORD_HASH`, `SITE_SESSION_SECRET` e `NEXT_PUBLIC_PERSONAL_MODE`: com o hash presente, a senha única continua valendo.
-3. Rode as migrações do Prisma no Neon: `npx prisma migrate deploy` dentro de `frontend/` com o `DATABASE_URL` de produção.
+3. Rode as migrações do Prisma no Neon: `npx prisma migrate deploy` dentro de `frontend/` com o `DATABASE_URL_UNPOOLED` de produção.
+   O Neon da web já teve o baseline feito em 16/10/2026: as tabelas do backend existiam antes do Prisma, então o
+   `migrate deploy` recusava (P3005). Cada `migration.sql` foi aplicado com `prisma db execute` (todos usam `IF NOT EXISTS`)
+   e marcado com `prisma migrate resolve --applied`. Migrações novas daqui em diante entram com `migrate deploy` normalmente.
 4. Publique o backend e o frontend (abaixo) e crie a sua conta em `/cadastro` com o email de `ADMIN_EMAILS`.
 
 ### Rate limit
