@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { LevelMeter } from "@/components/level-meter";
 import { SectionHeader } from "@/components/section-header";
 import {
   getDefaultTranscriptionProvider,
@@ -11,6 +12,7 @@ import {
   TRANSCRIPTION_PROVIDER_LABELS,
   WHISPER_MODEL_OPTIONS,
 } from "@/lib/transcription-options";
+import { rms } from "@/lib/recording/meeting-recorder";
 import { formatBytes, formatDuration } from "@/lib/utils";
 import {
   createDocumentModel,
@@ -110,6 +112,9 @@ export default function UploadPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const recordingStreamRef = useRef<MediaStream | null>(null);
+  const meterContextRef = useRef<AudioContext | null>(null);
+  const meterTimerRef = useRef<number | null>(null);
+  const silentSinceRef = useRef<number | null>(null);
   const [mode, setMode] = useState<UploadEntryMode>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [recordedFile, setRecordedFile] = useState<File | null>(null);
@@ -117,6 +122,8 @@ export default function UploadPage() {
   const [recordingState, setRecordingState] = useState<RecordingState>("idle");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [micLevel, setMicLevel] = useState(0);
+  const [micSilent, setMicSilent] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [instagramUrl, setInstagramUrl] = useState("");
   const [includeReportContext, setIncludeReportContext] = useState(false);
@@ -175,6 +182,7 @@ export default function UploadPage() {
     return () => {
       mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
       recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+      stopVolumeMeter();
     };
   }, []);
 
@@ -243,6 +251,46 @@ export default function UploadPage() {
     await submitMediaFile(recordedFile, intent);
   };
 
+  /** Le o volume do microfone enquanto grava, para o usuario ver que a fala esta chegando. */
+  const startVolumeMeter = (stream: MediaStream) => {
+    stopVolumeMeter();
+    try {
+      const context = new AudioContext();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 2048;
+      context.createMediaStreamSource(stream).connect(analyser);
+      const buffer = new Float32Array(analyser.fftSize);
+      meterContextRef.current = context;
+      silentSinceRef.current = performance.now();
+      meterTimerRef.current = window.setInterval(() => {
+        const level = rms(analyser, buffer);
+        setMicLevel(level);
+        if (level > 0.004) {
+          silentSinceRef.current = null;
+          setMicSilent(false);
+        } else if (silentSinceRef.current === null) {
+          silentSinceRef.current = performance.now();
+        } else if (performance.now() - silentSinceRef.current > 4000) {
+          setMicSilent(true);
+        }
+      }, 100);
+    } catch {
+      // Sem Web Audio a gravacao segue normal, so sem o medidor.
+    }
+  };
+
+  const stopVolumeMeter = () => {
+    if (meterTimerRef.current !== null) {
+      window.clearInterval(meterTimerRef.current);
+      meterTimerRef.current = null;
+    }
+    void meterContextRef.current?.close().catch(() => undefined);
+    meterContextRef.current = null;
+    silentSinceRef.current = null;
+    setMicLevel(0);
+    setMicSilent(false);
+  };
+
   const discardRecording = () => {
     if (recordingUrl) {
       URL.revokeObjectURL(recordingUrl);
@@ -288,6 +336,7 @@ export default function UploadPage() {
         const nextFile = new File([blob], `gravacao-${timestamp}.${extension}`, { type: finalMimeType });
         const nextUrl = URL.createObjectURL(blob);
 
+        stopVolumeMeter();
         recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
         recordingStreamRef.current = null;
         mediaRecorderRef.current = null;
@@ -297,9 +346,11 @@ export default function UploadPage() {
       };
 
       recorder.start();
+      startVolumeMeter(stream);
       setRecordingSeconds(0);
       setRecordingState("recording");
     } catch (err) {
+      stopVolumeMeter();
       recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
       recordingStreamRef.current = null;
       mediaRecorderRef.current = null;
@@ -599,6 +650,16 @@ export default function UploadPage() {
                             ) : null}
                           </div>
                         </div>
+
+                        {recordingState === "recording" ? (
+                          <div className="mt-4">
+                            <LevelMeter
+                              label="Volume da sua voz"
+                              value={micLevel}
+                              warn={micSilent ? "nao estou ouvindo nada - confira o microfone" : null}
+                            />
+                          </div>
+                        ) : null}
 
                         {recordingUrl ? <audio className="mt-4 w-full" controls src={recordingUrl} /> : null}
                       </div>

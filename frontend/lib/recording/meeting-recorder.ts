@@ -29,7 +29,7 @@ export interface RecorderResult {
   hasSystemAudio: boolean;
 }
 
-function rms(analyser: AnalyserNode, buffer: Float32Array<ArrayBuffer>): number {
+export function rms(analyser: AnalyserNode, buffer: Float32Array<ArrayBuffer>): number {
   analyser.getFloatTimeDomainData(buffer);
   let sum = 0;
   for (let index = 0; index < buffer.length; index += 1) {

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { LevelMeter } from "@/components/level-meter";
 import { LiveFeed } from "@/components/live-feed";
 import { getDesktopRecordingBridge, type DesktopCaptureSource } from "@/lib/recording/desktop-bridge";
 import { LiveAssistant, type LiveState } from "@/lib/recording/live-assistant";
@@ -53,21 +54,6 @@ function formatClock(totalSeconds: number) {
   const rest = seconds % 60;
   const pad = (value: number) => String(value).padStart(2, "0");
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(rest)}` : `${pad(minutes)}:${pad(rest)}`;
-}
-
-function LevelMeter({ label, value, warn }: { label: string; value: number; warn?: string | null }) {
-  const percent = Math.min(100, Math.round(Math.sqrt(value) * 220));
-  return (
-    <div>
-      <div className="flex items-center justify-between text-xs text-slate">
-        <span>{label}</span>
-        {warn ? <span className="text-amber-200">{warn}</span> : null}
-      </div>
-      <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full bg-sand transition-[width] duration-150" style={{ width: `${percent}%` }} />
-      </div>
-    </div>
-  );
 }
 
 function StepPill({ number, label, active, done }: { number: number; label: string; active: boolean; done: boolean }) {
