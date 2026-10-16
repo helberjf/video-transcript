@@ -2,7 +2,9 @@ import crypto from "node:crypto";
 import { Resend } from "resend";
 import { NextResponse } from "next/server";
 
+import { normalizeEmail } from "@/lib/auth/validation";
 import { prisma } from "@/lib/prisma";
+import { RATE_LIMITS, clientIp, consumeRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -15,6 +17,11 @@ function getResend() {
 }
 
 export async function POST(request: Request) {
+  const byIp = await consumeRateLimit("forgot-ip", clientIp(request.headers), RATE_LIMITS.forgotPasswordPerIp);
+  if (!byIp.allowed) {
+    return tooManyRequests(byIp.retryAfterSeconds);
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -22,23 +29,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
-  const { email } = body as Record<string, unknown>;
+  const email = normalizeEmail((body as Record<string, unknown>).email);
 
-  if (typeof email !== "string" || !EMAIL_RE.test(email)) {
+  if (!EMAIL_RE.test(email)) {
     return NextResponse.json({ error: "Email inválido." }, { status: 400 });
   }
 
-  // Always respond with the same message to avoid user enumeration
-  const user = await prisma.user.findUnique({ where: { email } });
+  // Limite por email evita encher a caixa de alguem com links. A resposta e a mesma para nao
+  // revelar se o email tem conta.
+  const byEmail = await consumeRateLimit("forgot-email", email, RATE_LIMITS.forgotPasswordPerEmail);
+  if (!byEmail.allowed) {
+    return NextResponse.json({ ok: true });
+  }
 
-  if (user?.password) {
+  // Always respond with the same message to avoid user enumeration
+  const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
+
+  if (user?.password && user.email) {
     // Delete any existing tokens for this email
-    await prisma.passwordResetToken.deleteMany({ where: { email } });
+    await prisma.passwordResetToken.deleteMany({ where: { email: user.email } });
 
     const token = crypto.randomBytes(32).toString("hex");
     const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    await prisma.passwordResetToken.create({ data: { email, token, expires } });
+    await prisma.passwordResetToken.create({ data: { email: user.email, token, expires } });
 
     const appUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const resetUrl = `${appUrl}/reset-password?token=${token}`;

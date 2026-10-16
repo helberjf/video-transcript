@@ -10,6 +10,7 @@ from app.services.transcription_service import transcribe_audio
 from app.services.usage_service import audio_video_credits, consume_credits
 from app.utils.ffmpeg import extract_audio_to_mp3, normalize_audio, probe_duration_seconds
 from app.utils.files import safe_unlink
+from app.workers.scope import upload_workspace_scope
 
 
 logger = logging.getLogger("processing_worker")
@@ -22,6 +23,18 @@ def process_upload(
     use_api: bool = True,
     whisper_model: str | None = None,
     transcription_provider: str | None = None,
+) -> None:
+    with upload_workspace_scope(upload_id):
+        _process_upload(upload_id, language, force_reprocess, use_api, whisper_model, transcription_provider)
+
+
+def _process_upload(
+    upload_id: str,
+    language: str | None,
+    force_reprocess: bool,
+    use_api: bool,
+    whisper_model: str | None,
+    transcription_provider: str | None,
 ) -> None:
     print(f"[worker] iniciando processamento upload={upload_id} use_api={use_api} whisper={whisper_model} provider={transcription_provider}", flush=True)
     db = SessionLocal()

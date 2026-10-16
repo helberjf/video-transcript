@@ -24,6 +24,7 @@ from app.services.meeting_service import (
 from app.services.recording_service import read_energy, read_meta, recording_key
 from app.services.usage_service import audio_video_credits, consume_credits
 from app.utils.ffmpeg import probe_duration_seconds, transcode_for_transcription
+from app.workers.scope import upload_workspace_scope
 
 
 DEFAULT_TITLE_PREFIX = "Reuniao gravada"
@@ -35,6 +36,11 @@ def _safe_title(value: str) -> str:
 
 
 def process_meeting(upload_id: str) -> None:
+    with upload_workspace_scope(upload_id):
+        _process_meeting(upload_id)
+
+
+def _process_meeting(upload_id: str) -> None:
     print(f"[reuniao] processando {upload_id}", flush=True)
     db = SessionLocal()
     repository = UploadRepository(db)

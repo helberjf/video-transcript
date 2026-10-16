@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { useAiKeyStatus } from "@/hooks/use-ai-key-status";
 import { useWorkspace } from "@/hooks/use-workspace";
 
 const navigation = [
@@ -19,14 +20,18 @@ const navigation = [
   { href: "/settings", label: "Ajustes", description: "IA e exportacao" },
   { href: "/pricing", label: "Precos", description: "Creditos" },
   { href: "/billing", label: "Plano", description: "Stripe" },
-  { href: "/login", label: "Cliente", description: "Workspace" },
+  { href: "/conta", label: "Conta", description: "Workspace" },
 ];
+
+const adminNavigation = [{ href: "/admin/usuarios", label: "Usuarios", description: "Acesso a IA" }];
 
 const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
 // Web pessoal na Vercel: protegida por uma senha só, sem contas, planos ou cobrança.
 const isPersonalMode = process.env.NEXT_PUBLIC_PERSONAL_MODE === "1";
 const desktopHiddenRoutes = new Set(["/pricing", "/billing"]);
-const personalHiddenRoutes = new Set(["/pricing", "/billing", "/login"]);
+const personalHiddenRoutes = new Set(["/pricing", "/billing", "/conta"]);
+// Telas de entrar/cadastrar ocupam a página inteira, sem o menu lateral.
+const authRoutes = ["/login", "/cadastro", "/forgot-password", "/reset-password", "/acesso", "/chave-ia"];
 const visibleNavigation = isPersonalMode
   ? navigation.filter((item) => !personalHiddenRoutes.has(item.href))
   : isDesktopMode
@@ -34,7 +39,7 @@ const visibleNavigation = isPersonalMode
     : navigation;
 
 function getPageLabel(pathname: string): string {
-  const activeItem = visibleNavigation
+  const activeItem = [...visibleNavigation, ...adminNavigation]
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
     .sort((left, right) => right.href.length - left.href.length)[0];
 
@@ -47,11 +52,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { workspace } = useWorkspace();
   const { data: session, status } = useSession();
   const planLabel = workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "business" ? "Business" : workspace.plan === "pro" ? "Pro" : "Trial";
+  const aiKey = useAiKeyStatus();
+  const navItems =
+    session?.user?.isAdmin && !isDesktopMode && !isPersonalMode ? [...visibleNavigation, ...adminNavigation] : visibleNavigation;
   const showPublicLayout =
     !isDesktopMode &&
     !isPersonalMode &&
     ((pathname === "/" && status !== "authenticated") ||
-      pathname.startsWith("/login") ||
+      authRoutes.some((route) => pathname.startsWith(route)) ||
       pathname.startsWith("/pricing") ||
       (pathname.startsWith("/billing") && status !== "authenticated"));
 
@@ -83,7 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="mt-4 flex w-full min-w-0 gap-2 overflow-x-auto pb-1 lg:mt-6 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0">
-            {visibleNavigation.map((item) => {
+            {navItems.map((item) => {
               const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
               return (
                 <Link
@@ -115,7 +123,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <Link
-            href={isDesktopMode ? "/login" : "/billing"}
+            href={isDesktopMode ? "/conta" : "/billing"}
             className="mt-4 hidden rounded-xl border border-tide/20 bg-tide/[0.08] p-4 text-xs leading-5 text-slate transition hover:border-sand/40 lg:block"
           >
             <p className="font-semibold text-ink">{workspace.clientName}</p>
@@ -153,9 +161,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                   Sair
                 </button>
               ) : !isDesktopMode ? (
-                <button className="button-secondary px-4 py-2" type="button" onClick={() => void signIn("google", { callbackUrl: "/" })}>
+                <Link className="button-secondary px-4 py-2" href={`/login?callbackUrl=${encodeURIComponent(pathname)}`}>
                   Entrar
-                </button>
+                </Link>
               ) : null}
               <Link className="button-secondary px-4 py-2" href="/forms">
                 Preencher documento
@@ -165,6 +173,16 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             </div>
           </div>
+
+          {aiKey.missingKey ? (
+            <Link
+              href="/chave-ia"
+              className="mb-5 block rounded-lg border border-sand/30 bg-sand/10 px-4 py-3 text-sm text-sand transition hover:border-sand/60"
+            >
+              <span className="font-semibold">Cadastre sua chave de IA para processar.</span>{" "}
+              <span className="text-slate">Ela fica guardada criptografada e só é usada nos seus pedidos.</span>
+            </Link>
+          ) : null}
 
           <div className="space-y-6">{children}</div>
         </main>

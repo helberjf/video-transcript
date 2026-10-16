@@ -6,6 +6,7 @@ declare module "next-auth" {
       id?: string;
       workspaceId?: string;
       plan?: string;
+      isAdmin?: boolean;
     };
   }
 }
@@ -15,5 +16,6 @@ declare module "next-auth/jwt" {
     id?: string;
     workspaceId?: string;
     plan?: string;
+    isAdmin?: boolean;
   }
 }

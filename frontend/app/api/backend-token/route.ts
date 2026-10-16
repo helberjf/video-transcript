@@ -3,9 +3,11 @@ import { getServerSession } from "next-auth";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { getAiKeyAccess } from "@/lib/ai-key-access";
 import { authOptions } from "@/lib/auth";
 import { getPlanCreditLimit } from "@/lib/billing-plans";
 import { prisma } from "@/lib/prisma";
+import { RATE_LIMITS, consumeRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { GATE_COOKIE, isGateEnabled, isGateSessionValid, isSameOriginRequest } from "@/lib/site-gate";
 import { ensureWorkspaceForUser, getCurrentMonthCredits } from "@/lib/workspace-db";
 
@@ -33,13 +35,13 @@ async function personalToken(request: Request) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 401 });
   }
   const workspaceId = "pessoal";
-  const token = await new SignJWT({ workspaceId, plan: "enterprise" })
+  const token = await new SignJWT({ workspaceId, plan: "enterprise", aiKeyAccess: "admin" })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(workspaceId)
     .setIssuedAt()
     .setExpirationTime("5m")
     .sign(getBackendAuthSecret());
-  return NextResponse.json({ token, workspaceId, plan: "enterprise", creditsLimit: null, creditsUsed: 0 });
+  return NextResponse.json({ token, workspaceId, plan: "enterprise", aiKeyAccess: "admin", creditsLimit: null, creditsUsed: 0 });
 }
 
 export async function GET(request: Request) {
@@ -53,18 +55,27 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Login necessario." }, { status: 401 });
   }
 
+  const limit = await consumeRateLimit("backend-token", userId, RATE_LIMITS.backendTokenPerUser);
+  if (!limit.allowed) {
+    return tooManyRequests(limit.retryAfterSeconds);
+  }
+
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     return NextResponse.json({ error: "Usuario nao encontrado." }, { status: 401 });
   }
 
   const workspace = await ensureWorkspaceForUser(user);
-  const creditsLimit = getPlanCreditLimit(workspace.plan);
+  // Lido do banco a cada token (5 min): liberar ou tirar a chave do admin vale logo.
+  const aiKeyAccess = getAiKeyAccess(user);
+  // Quem usa a propria chave paga o provedor direto, entao o plano nao limita.
+  const creditsLimit = aiKeyAccess === "own" ? null : getPlanCreditLimit(workspace.plan);
   const creditsUsed = await getCurrentMonthCredits(workspace.id);
   const token = await new SignJWT({
     email: user.email,
     workspaceId: workspace.id,
     plan: workspace.plan,
+    aiKeyAccess,
     creditsLimit,
     creditsUsed,
   })
@@ -78,6 +89,7 @@ export async function GET(request: Request) {
     token,
     workspaceId: workspace.id,
     plan: workspace.plan,
+    aiKeyAccess,
     creditsLimit,
     creditsUsed,
   });

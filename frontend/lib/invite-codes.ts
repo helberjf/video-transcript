@@ -1,6 +1,5 @@
 import { randomBytes } from "crypto";
 
-import { isAdminEmail } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 
 // Sem I, O, 0 e 1 para o codigo continuar legivel quando ditado por telefone.
@@ -85,22 +84,4 @@ export async function redeemInvite(code: string, email: string, userId?: string)
 
     return invite;
   });
-}
-
-/** Emails que ja entraram por convite (ou o admin) podem usar login social. */
-export async function isEmailAllowed(email: string | null | undefined): Promise<boolean> {
-  if (!email) {
-    return false;
-  }
-  if (isAdminEmail(email)) {
-    return true;
-  }
-
-  const normalized = email.trim().toLowerCase();
-  const [user, redemption] = await Promise.all([
-    prisma.user.findUnique({ where: { email: normalized } }),
-    prisma.inviteRedemption.findFirst({ where: { email: normalized } }),
-  ]);
-
-  return Boolean(user || redemption);
 }

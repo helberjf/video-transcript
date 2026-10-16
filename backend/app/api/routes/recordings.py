@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core import file_store
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.core.workspace import get_workspace_id
 from app.models.enums import CaptureTrigger, ProcessingStatus
 from app.repositories.upload_repository import UploadRepository
@@ -37,7 +38,7 @@ def _stored_response(key: str, media_type: str, db: Session) -> Response:
     return Response(content=data, media_type=media_type, headers={"Cache-Control": "private, no-store"})
 
 
-@router.post("/recordings", response_model=RecordingStartResponse)
+@router.post("/recordings", response_model=RecordingStartResponse, dependencies=[rate_limit("media")])
 def start_recording_endpoint(
     payload: RecordingStartRequest,
     db: Session = Depends(get_db),
@@ -71,7 +72,7 @@ def save_capture_endpoint(
     return recording_service.save_capture(db, upload_id, image, offset_seconds, trigger, workspace_id)
 
 
-@router.post("/recordings/{upload_id}/finish", response_model=ProcessingResponse)
+@router.post("/recordings/{upload_id}/finish", response_model=ProcessingResponse, dependencies=[rate_limit("media")])
 def finish_recording_endpoint(
     upload_id: str,
     payload: RecordingFinishRequest,
@@ -93,7 +94,7 @@ def finish_recording_endpoint(
     return ProcessingResponse(id=upload.id, status=upload.status, message="Processamento iniciado")
 
 
-@router.post("/recordings/{upload_id}/reprocess", response_model=ProcessingResponse)
+@router.post("/recordings/{upload_id}/reprocess", response_model=ProcessingResponse, dependencies=[rate_limit("media")])
 def reprocess_recording_endpoint(
     upload_id: str,
     payload: RecordingFinishRequest,
@@ -159,7 +160,7 @@ def rename_speakers_endpoint(
     return UploadRepository(db).save(upload)
 
 
-@router.post("/uploads/{upload_id}/insights", response_model=UploadDetail)
+@router.post("/uploads/{upload_id}/insights", response_model=UploadDetail, dependencies=[rate_limit("ai")])
 def regenerate_insights_endpoint(upload_id: str, db: Session = Depends(get_db), workspace_id: str = Depends(get_workspace_id)):
     upload = recording_service.get_meeting_or_404(db, upload_id, workspace_id)
     try:
@@ -196,7 +197,7 @@ def add_checklist_endpoint(
     return insights
 
 
-@router.post("/uploads/{upload_id}/ask")
+@router.post("/uploads/{upload_id}/ask", dependencies=[rate_limit("ai")])
 def ask_meeting_endpoint(
     upload_id: str,
     payload: MeetingQuestion,

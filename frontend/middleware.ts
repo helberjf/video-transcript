@@ -24,6 +24,18 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
+function isAdminPath(pathname: string): boolean {
+  return /^\/(api\/)?admin(\/|$)/.test(pathname);
+}
+
+/** Responde como se a rota nao existisse: o painel admin nao se anuncia para quem nao pode usa-lo. */
+function adminNotFound(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Nao encontrado." }, { status: 404 });
+  }
+  return NextResponse.rewrite(new URL("/_admin-indisponivel", request.url), { status: 404 });
+}
+
 /** Modo pessoal: uma senha só, e nada do site abre sem ela (páginas e rotas /api). */
 async function siteGate(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -44,6 +56,10 @@ async function siteGate(request: NextRequest) {
 }
 
 export async function middleware(request: NextRequest) {
+  // O painel admin so existe na web com contas: nem o desktop nem a senha unica tem administrador.
+  if (isAdminPath(request.nextUrl.pathname) && (isDesktopMode || isGateEnabled())) {
+    return adminNotFound(request);
+  }
   if (isDesktopMode) {
     return NextResponse.next();
   }
@@ -60,7 +76,14 @@ export async function middleware(request: NextRequest) {
   });
 
   if (token) {
+    if (isAdminPath(request.nextUrl.pathname) && token.isAdmin !== true) {
+      return adminNotFound(request);
+    }
     return NextResponse.next();
+  }
+
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Login necessario." }, { status: 401 });
   }
 
   const loginUrl = new URL("/login", request.url);

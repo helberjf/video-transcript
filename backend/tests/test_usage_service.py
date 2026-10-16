@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.database import Base
 from app.models.commercial import UsageEvent, Workspace
 from app.services import usage_service
+from app.services.ai_key_service import sync_ai_key_access
 
 
 @pytest.fixture()
@@ -23,8 +24,12 @@ def session(tmp_path):
         engine.dispose()
 
 
-def _web_settings(trial_credit_limit: int = 20) -> SimpleNamespace:
-    return SimpleNamespace(credit_limits_enabled=True, trial_credit_limit=trial_credit_limit)
+def _web_settings(trial_credit_limit: int = 20, backend_auth_required: bool = False) -> SimpleNamespace:
+    return SimpleNamespace(
+        credit_limits_enabled=True,
+        trial_credit_limit=trial_credit_limit,
+        backend_auth_required=backend_auth_required,
+    )
 
 
 def test_web_trial_blocks_when_monthly_limit_is_reached(session, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,10 +88,29 @@ def test_desktop_mode_records_usage_without_blocking(session, monkeypatch: pytes
     monkeypatch.setattr(
         usage_service,
         "get_settings",
-        lambda: SimpleNamespace(credit_limits_enabled=False, trial_credit_limit=20),
+        lambda: SimpleNamespace(credit_limits_enabled=False, trial_credit_limit=20, backend_auth_required=False),
     )
 
     usage_service.consume_credits(session, "local-workspace", "transcription", 25)
     usage_service.consume_credits(session, "local-workspace", "transcription", 30)
 
     assert usage_service.current_month_credits(session, "local-workspace") == 55
+
+
+def test_web_account_with_own_ai_key_is_not_limited_by_the_plan(session, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(usage_service, "get_settings", lambda: _web_settings(backend_auth_required=True))
+    sync_ai_key_access(session, "conta-propria", "own")
+
+    usage_service.consume_credits(session, "conta-propria", "transcription", 50)
+
+    assert usage_service.current_month_credits(session, "conta-propria") == 50
+
+
+def test_web_account_using_the_owner_key_keeps_the_plan_limit(session, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(usage_service, "get_settings", lambda: _web_settings(backend_auth_required=True))
+    sync_ai_key_access(session, "conta-liberada", "shared")
+
+    with pytest.raises(usage_service.HTTPException) as exc_info:
+        usage_service.consume_credits(session, "conta-liberada", "transcription", 50)
+
+    assert exc_info.value.status_code == 402

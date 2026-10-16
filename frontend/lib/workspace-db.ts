@@ -66,11 +66,20 @@ export async function serializeWorkspace(workspace: Workspace): Promise<Workspac
   };
 }
 
+/**
+ * Cada conta tem o workspace do proprio email. O admin pode continuar no workspace onde os dados
+ * ja estao (ADMIN_WORKSPACE_ID=pessoal mantem o que foi criado na web com senha unica).
+ */
+function workspaceIdFor(email: string, admin: boolean): string {
+  const adminWorkspace = process.env.ADMIN_WORKSPACE_ID?.trim();
+  return admin && adminWorkspace ? normalizeWorkspaceSlug(adminWorkspace) : normalizeWorkspaceSlug(email);
+}
+
 export async function ensureWorkspaceForUser(user: Pick<User, "id" | "email" | "name">): Promise<Workspace> {
   const email = user.email || `${user.id}@modeloia.local`;
-  const workspaceId = normalizeWorkspaceSlug(email);
-  const ownerName = user.name || email;
   const admin = isAdminEmail(email);
+  const workspaceId = workspaceIdFor(email, admin);
+  const ownerName = user.name || email;
 
   const workspace = await prisma.workspace.upsert({
     where: { id: workspaceId },

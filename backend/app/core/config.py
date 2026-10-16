@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{(PROJECT_DIR / 'data' / 'app.db').as_posix()}"
     backend_auth_secret: str | None = None
     backend_auth_required: bool = False
+    # Chave mestra que cifra as chaves de IA de cada conta na web (AES-256-GCM). Fica so no ambiente.
+    ai_keys_encryption_key: str | None = None
     storage_dir: Path = PROJECT_DIR / "storage"
     uploads_dir: Path = PROJECT_DIR / "storage" / "uploads"
     processed_dir: Path = PROJECT_DIR / "storage" / "processed"

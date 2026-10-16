@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -246,7 +246,7 @@ export default function DashboardPage() {
   };
 
   if (!showDashboard) {
-    return <PublicLanding onGoogleLogin={() => void signIn("google", { callbackUrl: "/" })} />;
+    return <PublicLanding />;
   }
 
   return (
@@ -306,7 +306,7 @@ export default function DashboardPage() {
 
             <div className="rounded-lg border border-tide/20 bg-tide/[0.08] p-4 text-sm leading-6 text-slate">
               <span className="font-semibold text-ink">Cliente ativo:</span> {workspace.clientName} - {workspace.segment}.{" "}
-              <Link className="font-semibold text-sand" href="/login">{isDesktopMode ? "Ajustar cliente local" : "Trocar workspace"}</Link>
+              <Link className="font-semibold text-sand" href="/conta">{isDesktopMode ? "Ajustar cliente local" : "Trocar workspace"}</Link>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -683,7 +683,7 @@ export default function DashboardPage() {
   );
 }
 
-function PublicLanding({ onGoogleLogin }: { onGoogleLogin: () => void }) {
+function PublicLanding() {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-7xl flex-col">
       <header className="flex items-center justify-between gap-4 py-3">
@@ -694,9 +694,12 @@ function PublicLanding({ onGoogleLogin }: { onGoogleLogin: () => void }) {
           <Link className="button-secondary px-4 py-2" href="/pricing">
             Planos
           </Link>
-          <button className="button-primary px-4 py-2" type="button" onClick={onGoogleLogin}>
-            Entrar com Google
-          </button>
+          <Link className="button-secondary px-4 py-2" href="/login">
+            Entrar
+          </Link>
+          <Link className="button-primary px-4 py-2" href="/cadastro">
+            Criar conta
+          </Link>
         </div>
       </header>
 
@@ -787,9 +790,9 @@ function PublicLanding({ onGoogleLogin }: { onGoogleLogin: () => void }) {
           <p className="text-lg font-semibold text-ink">Assinatura Stripe</p>
           <p className="mt-2 text-sm leading-6 text-slate">Planos Pro e Business com checkout seguro.</p>
         </Link>
-        <Link className="rounded-lg border border-white/10 bg-white/[0.04] p-5 transition hover:border-sand/35" href="/login">
-          <p className="text-lg font-semibold text-ink">Login Google gratuito</p>
-          <p className="mt-2 text-sm leading-6 text-slate">Auth.js sem custo por usuario para clientes do webapp.</p>
+        <Link className="rounded-lg border border-white/10 bg-white/[0.04] p-5 transition hover:border-sand/35" href="/cadastro">
+          <p className="text-lg font-semibold text-ink">Sua conta, sua chave de IA</p>
+          <p className="mt-2 text-sm leading-6 text-slate">Cadastro aberto. A chave de IA de cada conta fica guardada criptografada.</p>
         </Link>
         <Link className="rounded-lg border border-white/10 bg-white/[0.04] p-5 transition hover:border-sand/35" href="/login">
           <p className="text-lg font-semibold text-ink">Workspace por cliente</p>

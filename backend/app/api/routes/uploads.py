@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.core.workspace import call_with_workspace, get_workspace_id
 from app.schemas.upload import (
     ProcessRequest,
@@ -27,7 +28,7 @@ from app.workers.processing_worker import process_upload
 router = APIRouter(prefix="/api", tags=["uploads"])
 
 
-@router.post("/uploads", response_model=UploadCreateResponse)
+@router.post("/uploads", response_model=UploadCreateResponse, dependencies=[rate_limit("media")])
 def create_upload_endpoint(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -44,7 +45,7 @@ def create_upload_endpoint(
     )
 
 
-@router.post("/uploads/import", response_model=UploadCreateResponse)
+@router.post("/uploads/import", response_model=UploadCreateResponse, dependencies=[rate_limit("media")])
 def import_upload_endpoint(
     payload: RemoteImportRequest,
     db: Session = Depends(get_db),
@@ -86,7 +87,7 @@ def delete_upload_endpoint(
     return {"success": True}
 
 
-@router.post("/process/{upload_id}", response_model=ProcessingResponse)
+@router.post("/process/{upload_id}", response_model=ProcessingResponse, dependencies=[rate_limit("media")])
 def process_upload_endpoint(
     upload_id: str,
     payload: ProcessRequest,

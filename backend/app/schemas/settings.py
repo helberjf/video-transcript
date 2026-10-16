@@ -8,7 +8,12 @@ TranscriptionProvider = Literal["openai", "gemini", "whisper"]
 ReportProvider = Literal["openai", "claude", "gemini", "local"]
 
 
+AiKeyAccess = Literal["local", "admin", "shared", "own"]
+
+
 class SettingsRead(BaseModel):
+    # local: desktop; admin: dono do sistema; shared: usa a chave do admin; own: chave propria cifrada.
+    ai_key_access: AiKeyAccess = "local"
     openai_api_key_masked: str | None
     gemini_api_key_masked: str | None
     claude_api_key_masked: str | None

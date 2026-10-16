@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.commercial import UsageEvent, Workspace
+from app.services.ai_key_service import get_ai_key_access, uses_owner_keys
 
 
 PLAN_CREDIT_LIMITS: dict[str, int | None] = {
@@ -104,6 +105,9 @@ def consume_credits(
 
     workspace = ensure_workspace(db, workspace_id)
     limit = plan_credit_limit(workspace.plan)
+    # Na web, quem processa com a propria chave de IA paga o provedor direto: sem limite do plano.
+    if get_settings().backend_auth_required and not uses_owner_keys(get_ai_key_access(db, workspace_id)):
+        limit = None
     used = current_month_credits(db, workspace_id)
 
     if limit is not None and used + credits > limit:

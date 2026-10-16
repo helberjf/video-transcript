@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.services.ai_key_service import sync_ai_key_access
 from app.services.usage_service import sync_workspace_plan
 
 
@@ -27,8 +28,8 @@ def _backend_secret() -> str | None:
     return settings.backend_auth_secret or ("modeloia-dev-backend-secret" if settings.app_env == "development" else None)
 
 
-def _decode_workspace_from_authorization(authorization: str | None) -> tuple[str, str | None] | None:
-    """Retorna (workspace_id, plano) do token emitido pelo frontend."""
+def _decode_workspace_from_authorization(authorization: str | None) -> tuple[str, str | None, str | None] | None:
+    """Retorna (workspace_id, plano, acesso a chave de IA) do token emitido pelo frontend."""
     if not authorization or not authorization.lower().startswith("bearer "):
         return None
 
@@ -47,7 +48,12 @@ def _decode_workspace_from_authorization(authorization: str | None) -> tuple[str
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token sem workspace")
 
     plan = payload.get("plan")
-    return normalize_workspace_id(workspace_id), plan if isinstance(plan, str) else None
+    access = payload.get("aiKeyAccess")
+    return (
+        normalize_workspace_id(workspace_id),
+        plan if isinstance(plan, str) else None,
+        access if isinstance(access, str) else None,
+    )
 
 
 def get_workspace_id(
@@ -58,11 +64,14 @@ def get_workspace_id(
     settings = get_settings()
     decoded = _decode_workspace_from_authorization(authorization)
     if decoded:
-        workspace_id, plan = decoded
+        workspace_id, plan, access = decoded
         # O plano vive no banco do frontend (Prisma). Sem esta sincronia o
         # backend trataria todo mundo como trial, inclusive o admin.
         if plan:
             sync_workspace_plan(db, workspace_id, plan)
+        # Os workers nao tem token: o acesso a chave de IA precisa ficar no banco.
+        if settings.backend_auth_required:
+            sync_ai_key_access(db, workspace_id, access)
         return workspace_id
 
     if settings.backend_auth_required:

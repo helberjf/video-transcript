@@ -1,78 +1,46 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
-import { isAdminEmail } from "@/lib/admin";
-import { InviteError, findUsableInvite, redeemInvite } from "@/lib/invite-codes";
+import { normalizeEmail, validateEmail, validateName, validatePassword } from "@/lib/auth/validation";
 import { prisma } from "@/lib/prisma";
+import { RATE_LIMITS, clientIp, consumeRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { ensureWorkspaceForUser } from "@/lib/workspace-db";
 
 export const runtime = "nodejs";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
+  // Cadastro aberto: o limite por IP corta a criacao de contas em massa por script.
+  const limit = await consumeRateLimit("register-ip", clientIp(request.headers), RATE_LIMITS.registerPerIp);
+  if (!limit.allowed) {
+    return tooManyRequests(limit.retryAfterSeconds, "Muitos cadastros deste endereço. Tente de novo mais tarde.");
+  }
+
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!body) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
-  const { name, email, password, inviteCode } = body as Record<string, unknown>;
-
-  if (typeof email !== "string" || !EMAIL_RE.test(email)) {
-    return NextResponse.json({ error: "Email inválido." }, { status: 400 });
-  }
-  if (typeof password !== "string" || password.length < 8) {
-    return NextResponse.json({ error: "A senha deve ter pelo menos 8 caracteres." }, { status: 400 });
-  }
-  if (typeof name !== "string" || name.trim().length === 0) {
-    return NextResponse.json({ error: "Nome é obrigatório." }, { status: 400 });
+  const email = normalizeEmail(body.email);
+  const error = validateName(body.name) ?? validateEmail(email) ?? validatePassword(body.password);
+  if (error) {
+    return NextResponse.json({ error }, { status: 400 });
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
   if (existing) {
-    return NextResponse.json({ error: "Este email já está cadastrado." }, { status: 409 });
+    return NextResponse.json({ error: "Este email já tem conta. Entre ou recupere a senha." }, { status: 409 });
   }
-
-  // O admin usa a propria chave de IA e nao precisa de convite.
-  const needsInvite = !isAdminEmail(email);
-  if (needsInvite) {
-    try {
-      await findUsableInvite(inviteCode as string);
-    } catch (error) {
-      if (error instanceof InviteError) {
-        return NextResponse.json({ error: error.message }, { status: error.status });
-      }
-      throw error;
-    }
-  }
-
-  const hashed = await bcrypt.hash(password, 12);
 
   const user = await prisma.user.create({
     data: {
-      name: name.trim(),
+      name: (body.name as string).trim(),
       email,
-      password: hashed,
+      password: await bcrypt.hash(body.password as string, 12),
       emailVerified: null,
     },
   });
 
-  if (needsInvite) {
-    try {
-      await redeemInvite(inviteCode as string, email, user.id);
-    } catch (error) {
-      // Sem o convite consumido a conta nao pode existir: desfaz o cadastro.
-      await prisma.user.delete({ where: { id: user.id } });
-      if (error instanceof InviteError) {
-        return NextResponse.json({ error: error.message }, { status: error.status });
-      }
-      throw error;
-    }
-  }
-
-  await ensureWorkspaceForUser({ id: user.id, email: user.email ?? null, name: user.name ?? null });
+  await ensureWorkspaceForUser({ id: user.id, email: user.email, name: user.name });
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

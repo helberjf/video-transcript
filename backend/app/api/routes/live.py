@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.core.workspace import get_workspace_id
 from app.services.live_service import MAX_WINDOW_BYTES, suggest_reply, transcribe_window
 
@@ -21,7 +22,7 @@ class LiveSuggestRequest(BaseModel):
     focus: str | None = Field(default=None, max_length=500)
 
 
-@router.post("/transcribe")
+@router.post("/transcribe", dependencies=[rate_limit("live-transcribe")])
 def live_transcribe_endpoint(
     audio: UploadFile = File(...),
     language: str | None = Form(None),
@@ -34,7 +35,7 @@ def live_transcribe_endpoint(
     return {"text": text, "engine": engine}
 
 
-@router.post("/suggest")
+@router.post("/suggest", dependencies=[rate_limit("live-suggest")])
 def live_suggest_endpoint(
     payload: LiveSuggestRequest,
     db: Session = Depends(get_db),

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, File, UploadFile
 
+from app.core.rate_limit import rate_limit
 from app.core.workspace import get_workspace_id
 from app.schemas.cookies import BrowserLoginTarget, CookiesStatus, InstagramLoginStatus
 from app.services.browser_login_service import (
@@ -22,7 +23,7 @@ def get_cookies_status_endpoint(_: str = Depends(get_workspace_id)) -> CookiesSt
     return read_cookies_status()
 
 
-@router.post("/cookies", response_model=CookiesStatus)
+@router.post("/cookies", response_model=CookiesStatus, dependencies=[rate_limit("cookies")])
 def upload_cookies_endpoint(
     file: UploadFile = File(...),
     _: str = Depends(get_workspace_id),
@@ -35,7 +36,7 @@ def delete_cookies_endpoint(_: str = Depends(get_workspace_id)) -> CookiesStatus
     return delete_cookies_file()
 
 
-@router.post("/cookies/instagram-login", response_model=InstagramLoginStatus)
+@router.post("/cookies/instagram-login", response_model=InstagramLoginStatus, dependencies=[rate_limit("cookies")])
 async def start_instagram_login_endpoint(_: str = Depends(get_workspace_id)) -> InstagramLoginStatus:
     return start_login_flow("instagram")
 
@@ -50,7 +51,7 @@ def cancel_instagram_login_endpoint(_: str = Depends(get_workspace_id)) -> Insta
     return cancel_login_flow("instagram")
 
 
-@router.post("/cookies/browser-login/{target}", response_model=InstagramLoginStatus)
+@router.post("/cookies/browser-login/{target}", response_model=InstagramLoginStatus, dependencies=[rate_limit("cookies")])
 async def start_browser_login_endpoint(
     target: BrowserLoginTarget,
     _: str = Depends(get_workspace_id),

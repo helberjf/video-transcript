@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
+from app.core.request_context import workspace_scope
 from app.models.instagram_analyze_job import InstagramAnalyzeJob
 from app.repositories.instagram_analyze_job_repository import InstagramAnalyzeJobRepository
 from app.schemas.instagram import (
@@ -324,6 +325,12 @@ def get_analyze_job(db: Session, job_id: str, workspace_id: str) -> InstagramAna
 
 
 def _run_job_in_background(job_id: str, url: str, workspace_id: str) -> None:
+    # A thread nao herda o contexto da requisicao: sem isto a chave de IA seria a errada.
+    with workspace_scope(workspace_id):
+        _run_job(job_id, url)
+
+
+def _run_job(job_id: str, url: str) -> None:
     db = SessionLocal()
     try:
         repository = InstagramAnalyzeJobRepository(db)

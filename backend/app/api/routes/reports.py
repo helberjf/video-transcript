@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.core.workspace import call_with_workspace, get_workspace_id
 from app.repositories.report_repository import ReportRepository
 from app.schemas.report import GenerateReportRequest, ReportExportExtension, ReportExportRead, ReportRead, ReportRenameRequest
@@ -12,7 +13,7 @@ from app.services.report_service import generate_report, get_report_export, list
 router = APIRouter(prefix="/api", tags=["reports"])
 
 
-@router.post("/reports/generate", response_model=ReportRead)
+@router.post("/reports/generate", response_model=ReportRead, dependencies=[rate_limit("ai")])
 def generate_report_endpoint(
     payload: GenerateReportRequest,
     db: Session = Depends(get_db),

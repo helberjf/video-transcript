@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { AiKeyNotice, SharedAiKeyNotice } from "@/components/ai-key-notice";
 import { DesktopUpdatesCard } from "@/components/desktop-updates-card";
 import { SectionHeader } from "@/components/section-header";
 import { LANGUAGE_OPTIONS, TRANSCRIPTION_PROVIDER_LABELS, WHISPER_MODEL_OPTIONS } from "@/lib/transcription-options";
@@ -361,6 +362,10 @@ export default function SettingsPage() {
     }
   };
 
+  const access = settings?.ai_key_access ?? "local";
+  // Conta comum da web: só a própria chave é dela; os demais ajustes são do admin.
+  const isAccount = access === "own" || access === "shared";
+
   return (
     <div className="space-y-6">
       <SectionHeader
@@ -375,7 +380,17 @@ export default function SettingsPage() {
       <section className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
         <div className="panel p-6">
           <div className="grid gap-4 md:grid-cols-2">
-            {API_KEY_CONTROLS.map((control) => {
+            {access === "own" ? (
+              <div className="md:col-span-2">
+                <AiKeyNotice />
+              </div>
+            ) : null}
+            {access === "shared" ? (
+              <div className="md:col-span-2">
+                <SharedAiKeyNotice />
+              </div>
+            ) : null}
+            {access === "shared" ? null : API_KEY_CONTROLS.map((control) => {
               const maskedValue = settings?.[control.maskedField] ?? null;
               return (
                 <div key={control.field} className="md:col-span-2">
@@ -405,81 +420,89 @@ export default function SettingsPage() {
                 </div>
               );
             })}
-            <div>
-              <label className="mb-2 block text-sm font-medium">Whisper local</label>
-              <select className="field" value={form.whisper_model} onChange={(event) => setForm((current) => ({ ...current, whisper_model: event.target.value }))}>
-                {WHISPER_MODEL_OPTIONS.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium">Idioma preferido</label>
-              <select className="field" value={form.preferred_language} onChange={(event) => setForm((current) => ({ ...current, preferred_language: event.target.value }))}>
-                {LANGUAGE_OPTIONS.map((language) => (
-                  <option key={language.value} value={language.value}>
-                    {language.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium">Template padrão</label>
-              <select className="field" value={form.default_report_template_id} onChange={(event) => setForm((current) => ({ ...current, default_report_template_id: event.target.value }))}>
-                <option value="">Sem padrão</option>
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>{template.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium">Limite máximo de upload (MB)</label>
-              <input className="field" type="number" value={form.max_upload_mb} onChange={(event) => setForm((current) => ({ ...current, max_upload_mb: Number(event.target.value) }))} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium">Pasta padrão para exportação</label>
-              <input className="field" value={form.export_directory} onChange={(event) => setForm((current) => ({ ...current, export_directory: event.target.value }))} placeholder="C:\\Relatorios" />
-            </div>
-            <div className="md:col-span-2">
-              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm">
-                <input type="checkbox" checked={form.auto_cleanup_temp_files} onChange={(event) => setForm((current) => ({ ...current, auto_cleanup_temp_files: event.target.checked }))} />
-                Apagar arquivos temporários automaticamente
-              </label>
-            </div>
-            <div className="md:col-span-2 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-sm font-semibold text-ink">Ordem de transcrição</p>
-              <div className="mt-4 space-y-3">
-                {form.transcription_provider_order.map((provider, index) => (
-                  <div key={provider} className="flex items-center justify-between rounded-2xl border border-white/10 bg-midnight/35 px-4 py-3 text-sm">
-                    <div>
-                      <p className="font-medium text-ink">{index + 1}. {TRANSCRIPTION_PROVIDER_LABELS[provider]}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" className="button-secondary" onClick={() => setForm((current) => ({ ...current, transcription_provider_order: moveItem(current.transcription_provider_order, index, -1) }))} disabled={index === 0}>Subir</button>
-                      <button type="button" className="button-secondary" onClick={() => setForm((current) => ({ ...current, transcription_provider_order: moveItem(current.transcription_provider_order, index, 1) }))} disabled={index === form.transcription_provider_order.length - 1}>Descer</button>
-                    </div>
-                  </div>
-                ))}
+            {isAccount ? (
+              <p className="md:col-span-2 text-xs leading-5 text-slate">
+                Idioma, modelos e ordem dos provedores são definidos pelo administrador do sistema.
+              </p>
+            ) : (
+              <>
+              <div>
+                <label className="mb-2 block text-sm font-medium">Whisper local</label>
+                <select className="field" value={form.whisper_model} onChange={(event) => setForm((current) => ({ ...current, whisper_model: event.target.value }))}>
+                  {WHISPER_MODEL_OPTIONS.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </div>
-            <div className="md:col-span-2 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-sm font-semibold text-ink">Ordem de geração de relatórios</p>
-              <div className="mt-4 space-y-3">
-                {form.report_provider_order.map((provider, index) => (
-                  <div key={provider} className="flex items-center justify-between rounded-2xl border border-white/10 bg-midnight/35 px-4 py-3 text-sm">
-                    <div>
-                      <p className="font-medium text-ink">{index + 1}. {REPORT_PROVIDER_LABELS[provider]}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" className="button-secondary" onClick={() => setForm((current) => ({ ...current, report_provider_order: moveItem(current.report_provider_order, index, -1) }))} disabled={index === 0}>Subir</button>
-                      <button type="button" className="button-secondary" onClick={() => setForm((current) => ({ ...current, report_provider_order: moveItem(current.report_provider_order, index, 1) }))} disabled={index === form.report_provider_order.length - 1}>Descer</button>
-                    </div>
-                  </div>
-                ))}
+              <div>
+                <label className="mb-2 block text-sm font-medium">Idioma preferido</label>
+                <select className="field" value={form.preferred_language} onChange={(event) => setForm((current) => ({ ...current, preferred_language: event.target.value }))}>
+                  {LANGUAGE_OPTIONS.map((language) => (
+                    <option key={language.value} value={language.value}>
+                      {language.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium">Template padrão</label>
+                <select className="field" value={form.default_report_template_id} onChange={(event) => setForm((current) => ({ ...current, default_report_template_id: event.target.value }))}>
+                  <option value="">Sem padrão</option>
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>{template.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium">Limite máximo de upload (MB)</label>
+                <input className="field" type="number" value={form.max_upload_mb} onChange={(event) => setForm((current) => ({ ...current, max_upload_mb: Number(event.target.value) }))} />
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-medium">Pasta padrão para exportação</label>
+                <input className="field" value={form.export_directory} onChange={(event) => setForm((current) => ({ ...current, export_directory: event.target.value }))} placeholder="C:\\Relatorios" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm">
+                  <input type="checkbox" checked={form.auto_cleanup_temp_files} onChange={(event) => setForm((current) => ({ ...current, auto_cleanup_temp_files: event.target.checked }))} />
+                  Apagar arquivos temporários automaticamente
+                </label>
+              </div>
+              <div className="md:col-span-2 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-sm font-semibold text-ink">Ordem de transcrição</p>
+                <div className="mt-4 space-y-3">
+                  {form.transcription_provider_order.map((provider, index) => (
+                    <div key={provider} className="flex items-center justify-between rounded-2xl border border-white/10 bg-midnight/35 px-4 py-3 text-sm">
+                      <div>
+                        <p className="font-medium text-ink">{index + 1}. {TRANSCRIPTION_PROVIDER_LABELS[provider]}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" className="button-secondary" onClick={() => setForm((current) => ({ ...current, transcription_provider_order: moveItem(current.transcription_provider_order, index, -1) }))} disabled={index === 0}>Subir</button>
+                        <button type="button" className="button-secondary" onClick={() => setForm((current) => ({ ...current, transcription_provider_order: moveItem(current.transcription_provider_order, index, 1) }))} disabled={index === form.transcription_provider_order.length - 1}>Descer</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="md:col-span-2 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-sm font-semibold text-ink">Ordem de geração de relatórios</p>
+                <div className="mt-4 space-y-3">
+                  {form.report_provider_order.map((provider, index) => (
+                    <div key={provider} className="flex items-center justify-between rounded-2xl border border-white/10 bg-midnight/35 px-4 py-3 text-sm">
+                      <div>
+                        <p className="font-medium text-ink">{index + 1}. {REPORT_PROVIDER_LABELS[provider]}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" className="button-secondary" onClick={() => setForm((current) => ({ ...current, report_provider_order: moveItem(current.report_provider_order, index, -1) }))} disabled={index === 0}>Subir</button>
+                        <button type="button" className="button-secondary" onClick={() => setForm((current) => ({ ...current, report_provider_order: moveItem(current.report_provider_order, index, 1) }))} disabled={index === form.report_provider_order.length - 1}>Descer</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              </>
+            )}
           </div>
           <button className="button-primary mt-6" type="button" onClick={() => void save()}>Salvar configurações</button>
 

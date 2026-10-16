@@ -13,6 +13,8 @@ model User {
   emailVerified DateTime? @map("email_verified")
   image         String?
   password      String?
+  // Liberado pelo admin para processar com a chave de IA do dono do sistema.
+  useOwnerAiKey Boolean   @default(false) @map("use_owner_ai_key")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -33,6 +35,16 @@ model PasswordResetToken {
 
   @@index([email])
   @@map("password_reset_tokens")
+}
+
+/// Contador de rate limit em janela fixa. Fica no banco para valer entre todas as instancias da Vercel.
+model RateLimitBucket {
+  key         String   @id
+  count       Int
+  windowStart DateTime @map("window_start")
+
+  @@index([windowStart])
+  @@map("rate_limit_buckets")
 }
 
 model Account {

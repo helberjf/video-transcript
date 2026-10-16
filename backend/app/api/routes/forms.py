@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.core.workspace import call_with_workspace, get_workspace_id
 from app.schemas.form import (
     FormDetectFieldsRequest,
@@ -25,7 +26,7 @@ from app.services.vision_service import VisionUnavailableError
 router = APIRouter(prefix="/api", tags=["forms"])
 
 
-@router.post("/forms/fill", response_model=FormFillResponse)
+@router.post("/forms/fill", response_model=FormFillResponse, dependencies=[rate_limit("ai")])
 def fill_form_endpoint(
     payload: FormFillRequest,
     db: Session = Depends(get_db),
@@ -38,7 +39,7 @@ def fill_form_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.post("/forms/fill-fields", response_model=FormFillResponse)
+@router.post("/forms/fill-fields", response_model=FormFillResponse, dependencies=[rate_limit("ai")])
 def fill_form_fields_endpoint(
     payload: FormFillFieldsRequest,
     db: Session = Depends(get_db),
@@ -51,7 +52,7 @@ def fill_form_fields_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.post("/forms/detect-fields", response_model=FormDetectFieldsResponse)
+@router.post("/forms/detect-fields", response_model=FormDetectFieldsResponse, dependencies=[rate_limit("ai")])
 def detect_form_fields_endpoint(
     payload: FormDetectFieldsRequest,
     db: Session = Depends(get_db),
@@ -63,7 +64,7 @@ def detect_form_fields_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.post("/forms/read-paper", response_model=FormPaperReadResponse)
+@router.post("/forms/read-paper", response_model=FormPaperReadResponse, dependencies=[rate_limit("ai")])
 def read_paper_endpoint(
     template_id: str = Form(...),
     files: list[UploadFile] = File(...),

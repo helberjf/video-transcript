@@ -14,11 +14,16 @@ export default function ForgotPasswordPage() {
     setError(null);
     setLoading(true);
     try {
-      await fetch("/api/auth/forgot-password", {
+      const response = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        setError(data.error ?? "Não foi possível enviar agora. Tente de novo.");
+        return;
+      }
       setDone(true);
     } catch {
       setError("Erro de conexão. Tente novamente.");

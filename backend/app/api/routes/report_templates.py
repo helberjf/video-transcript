@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.core.workspace import call_with_workspace, get_workspace_id
 from app.schemas.report_template import (
     ReportTemplateCreate,
@@ -32,7 +33,7 @@ def list_templates_endpoint(db: Session = Depends(get_db), workspace_id: str = D
     return call_with_workspace(list_templates, db, workspace_id=workspace_id)
 
 
-@router.post("/report-templates/analyze-reference-preview", response_model=ReportTemplateReferenceAnalysis)
+@router.post("/report-templates/analyze-reference-preview", response_model=ReportTemplateReferenceAnalysis, dependencies=[rate_limit("ai")])
 def analyze_template_reference_endpoint(
     file: UploadFile = File(...),
     name: str | None = Form(None),
@@ -54,7 +55,7 @@ def analyze_template_reference_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.post("/report-templates/extract-reference-text", response_model=ReportTemplateReferenceText)
+@router.post("/report-templates/extract-reference-text", response_model=ReportTemplateReferenceText, dependencies=[rate_limit("ai")])
 def extract_template_reference_text_endpoint(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -67,7 +68,7 @@ def extract_template_reference_text_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.post("/report-templates/analyze-reference", response_model=ReportTemplateRead)
+@router.post("/report-templates/analyze-reference", response_model=ReportTemplateRead, dependencies=[rate_limit("ai")])
 def create_template_from_reference_endpoint(
     file: UploadFile = File(...),
     name: str | None = Form(None),

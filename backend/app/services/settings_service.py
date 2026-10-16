@@ -3,9 +3,22 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from fastapi import HTTPException, status
+
+from app.core.ai_key_crypto import AiKeyCryptoError
 from app.core.config import BASE_DIR, get_settings
+from app.core.request_context import current_workspace_id
 from app.models.system_config import SystemConfig
 from app.repositories.settings_repository import SettingsRepository
+from app.services.ai_key_service import (
+    ACCESS_ADMIN,
+    ACCESS_SHARED,
+    KEY_FIELDS,
+    get_ai_key_access,
+    read_own_keys,
+    save_own_keys,
+    uses_owner_keys,
+)
 from app.schemas.settings import SettingsRead, SettingsUpdate
 
 
@@ -142,10 +155,23 @@ def get_or_create_system_config(db: Session) -> SystemConfig:
     return repository.save(config)
 
 
-def get_effective_provider_settings(db: Session) -> dict[str, str | int | bool | None]:
+def _web_accounts_enabled() -> bool:
+    """Na web com contas cada workspace tem a propria chave; no desktop vale a chave global."""
+    return get_settings().backend_auth_required
+
+
+def _workspace_api_keys(db: Session, workspace_id: str | None, global_keys: dict[str, str | None]) -> dict[str, str | None]:
+    if not workspace_id:
+        return {field: None for field in KEY_FIELDS}
+    if uses_owner_keys(get_ai_key_access(db, workspace_id)):
+        return global_keys
+    return read_own_keys(db, workspace_id)
+
+
+def get_effective_provider_settings(db: Session, workspace_id: str | None = None) -> dict[str, str | int | bool | None]:
     app_settings = get_settings()
     system_config = get_or_create_system_config(db)
-    return {
+    effective = {
         "openai_api_key": system_config.openai_api_key or app_settings.openai_api_key,
         "gemini_api_key": system_config.gemini_api_key or app_settings.gemini_api_key,
         "claude_api_key": system_config.claude_api_key or app_settings.claude_api_key,
@@ -164,12 +190,27 @@ def get_effective_provider_settings(db: Session) -> dict[str, str | int | bool |
         "export_directory": system_config.export_directory or str(app_settings.exports_dir),
         "default_report_template_id": system_config.default_report_template_id,
     }
+    if _web_accounts_enabled():
+        global_keys = {field: effective[field] for field in KEY_FIELDS}
+        effective.update(_workspace_api_keys(db, workspace_id or current_workspace_id.get(), global_keys))
+    return effective
 
 
-def read_settings(db: Session) -> SettingsRead:
+def _ai_key_access_for(db: Session, workspace_id: str | None) -> str:
+    if not _web_accounts_enabled():
+        return "local"
+    return get_ai_key_access(db, workspace_id or current_workspace_id.get())
+
+
+def read_settings(db: Session, workspace_id: str | None = None) -> SettingsRead:
     config = get_or_create_system_config(db)
-    effective = get_effective_provider_settings(db)
+    effective = get_effective_provider_settings(db, workspace_id)
+    access = _ai_key_access_for(db, workspace_id)
+    if access == ACCESS_SHARED:
+        # A conta usa a chave do admin, mas nem a versao mascarada dela aparece.
+        effective = {**effective, **{field: None for field in KEY_FIELDS}}
     return SettingsRead(
+        ai_key_access=access,
         openai_api_key_masked=mask_secret(effective.get("openai_api_key") if isinstance(effective.get("openai_api_key"), str) else None),
         gemini_api_key_masked=mask_secret(effective.get("gemini_api_key") if isinstance(effective.get("gemini_api_key"), str) else None),
         claude_api_key_masked=mask_secret(effective.get("claude_api_key") if isinstance(effective.get("claude_api_key"), str) else None),
@@ -185,7 +226,11 @@ def read_settings(db: Session) -> SettingsRead:
     )
 
 
-def update_settings(db: Session, payload: SettingsUpdate) -> SettingsRead:
+def update_settings(db: Session, payload: SettingsUpdate, workspace_id: str | None = None) -> SettingsRead:
+    access = _ai_key_access_for(db, workspace_id)
+    if access not in ("local", ACCESS_ADMIN):
+        return _update_account_keys(db, payload, workspace_id or current_workspace_id.get(), access)
+
     repository = SettingsRepository(db)
     config = get_or_create_system_config(db)
     update_data = payload.model_dump(exclude_unset=True)
@@ -197,3 +242,24 @@ def update_settings(db: Session, payload: SettingsUpdate) -> SettingsRead:
     repository.save(config)
     _sync_env_values(update_data)
     return read_settings(db)
+
+
+def _update_account_keys(db: Session, payload: SettingsUpdate, workspace_id: str | None, access: str) -> SettingsRead:
+    """Conta comum da web: so troca as proprias chaves. Os ajustes globais sao do admin."""
+    key_updates = {field: value for field, value in payload.model_dump(exclude_unset=True).items() if field in KEY_FIELDS}
+    if not workspace_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login necessario")
+    if key_updates and access == ACCESS_SHARED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sua conta usa a chave de IA liberada pelo administrador.",
+        )
+    if key_updates:
+        try:
+            save_own_keys(db, workspace_id, key_updates)
+        except AiKeyCryptoError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="O servidor ainda nao esta pronto para guardar chaves com seguranca.",
+            ) from exc
+    return read_settings(db, workspace_id)

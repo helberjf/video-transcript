@@ -57,7 +57,7 @@ export default function BillingPage() {
     }
 
     if (status !== "authenticated") {
-      await signIn("google", { callbackUrl: "/billing" });
+      await signIn(undefined, { callbackUrl: "/billing" });
       return;
     }
 
@@ -85,7 +85,7 @@ export default function BillingPage() {
 
   const openPortal = async () => {
     if (status !== "authenticated") {
-      await signIn("google", { callbackUrl: "/billing" });
+      await signIn(undefined, { callbackUrl: "/billing" });
       return;
     }
 

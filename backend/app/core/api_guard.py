@@ -3,8 +3,10 @@
 Com BACKEND_AUTH_REQUIRED=true, qualquer chamada a /api precisa de:
 - Origin de um site autorizado (CORS_ORIGINS). Navegadores sempre mandam Origin em chamadas
   entre sites; Postman/curl nao mandam por padrao, entao a chamada direta ja morre aqui.
-- Token assinado e de vida curta (5 min) emitido pelo frontend so depois da senha de acesso.
-  Forjar o Origin no Postman nao basta: sem a senha nao ha token valido.
+- Token assinado e de vida curta (5 min) emitido pelo frontend so depois do login.
+  Forjar o Origin no Postman nao basta: sem login nao ha token valido.
+
+O workspace do token fica no contexto da requisicao para os servicos escolherem a chave de IA certa.
 """
 
 import re
@@ -15,6 +17,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.core.config import get_settings
+from app.core.request_context import workspace_scope
+from app.core.workspace import normalize_workspace_id
 
 
 OPEN_PATHS = {"/api/health"}
@@ -29,16 +33,18 @@ def origin_allowed(origin: str | None) -> bool:
     return bool(settings.cors_origin_regex and re.fullmatch(settings.cors_origin_regex, origin))
 
 
-def _token_valid(authorization: str | None) -> bool:
+def _token_workspace(authorization: str | None) -> str | None:
+    """Workspace de um token valido, ou None quando o token falta ou nao confere."""
     settings = get_settings()
     secret = settings.backend_auth_secret
     if not secret or not authorization or not authorization.lower().startswith("bearer "):
-        return False
+        return None
     try:
         payload = jwt.decode(authorization.split(" ", 1)[1].strip(), secret, algorithms=["HS256"], options={"require": ["exp"]})
     except jwt.PyJWTError:
-        return False
-    return isinstance(payload.get("workspaceId"), str)
+        return None
+    workspace_id = payload.get("workspaceId")
+    return normalize_workspace_id(workspace_id) if isinstance(workspace_id, str) else None
 
 
 class ApiGuardMiddleware(BaseHTTPMiddleware):
@@ -53,6 +59,9 @@ class ApiGuardMiddleware(BaseHTTPMiddleware):
         ):
             if not origin_allowed(request.headers.get("origin")):
                 return JSONResponse({"detail": "Origem nao autorizada"}, status_code=403)
-            if not _token_valid(request.headers.get("authorization")):
+            workspace_id = _token_workspace(request.headers.get("authorization"))
+            if not workspace_id:
                 return JSONResponse({"detail": "Acesso negado"}, status_code=401)
+            with workspace_scope(workspace_id):
+                return await call_next(request)
         return await call_next(request)

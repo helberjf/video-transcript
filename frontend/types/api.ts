@@ -394,7 +394,11 @@ export interface FormExportPayload {
   extension: ReportExportExtension;
 }
 
+/** local: desktop; admin: dono do sistema; shared: usa a chave do admin; own: chave própria criptografada. */
+export type AiKeyAccess = "local" | "admin" | "shared" | "own";
+
 export interface SettingsRead {
+  ai_key_access: AiKeyAccess;
   openai_api_key_masked: string | null;
   gemini_api_key_masked: string | null;
   claude_api_key_masked: string | null;

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { RATE_LIMITS, consumeRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { getAppUrl, getStripe } from "@/lib/stripe";
 import { ensureWorkspaceForUser } from "@/lib/workspace-db";
 
@@ -14,6 +15,11 @@ export async function POST(request: Request) {
 
   if (!email) {
     return NextResponse.json({ error: "Login necessario para abrir o portal." }, { status: 401 });
+  }
+
+  const limit = await consumeRateLimit("billing", email, RATE_LIMITS.billingPerUser);
+  if (!limit.allowed) {
+    return tooManyRequests(limit.retryAfterSeconds);
   }
 
   try {

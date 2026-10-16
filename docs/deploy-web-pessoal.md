@@ -35,6 +35,51 @@ Depois:
 
 Para derrubar todas as sessões abertas, troque também o `SITE_SESSION_SECRET`.
 
+## Trocar a senha única por contas (login por usuário)
+
+A web também funciona com contas: cadastro aberto, login com email/senha (e Google, se configurado),
+cada pessoa no próprio workspace e usando a **própria chave de IA**, guardada criptografada.
+
+Como funciona a chave de IA de cada conta:
+
+- `admin` (emails em `ADMIN_EMAILS`): usa e configura a chave global em Ajustes.
+- Conta liberada pelo admin em `/admin/usuarios`: processa com a chave do admin, sem vê-la. O limite de créditos do plano continua valendo.
+- Demais contas: cadastram a própria chave em `/chave-ia` (passo 2 do cadastro). O backend cifra com AES-256-GCM
+  (`AI_KEYS_ENCRYPTION_KEY`) e guarda só o texto cifrado na tabela `workspace_ai_keys`. A tela mostra apenas o começo e o fim da chave.
+  Essas contas não têm limite de créditos, porque pagam o provedor direto.
+- Sem workspace identificado, nenhuma chave é usada (a do admin nunca entra por engano).
+
+Passo a passo:
+
+1. **Backend (`modeloia-api`)**: adicione `AI_KEYS_ENCRYPTION_KEY` (gere com `python -c "import secrets;print(secrets.token_urlsafe(48))"`).
+   Guarde uma cópia: trocar esse valor deixa ilegíveis as chaves já salvas.
+2. **Frontend (`modeloia`)**:
+   - `DATABASE_URL` e `DIRECT_URL` apontando para o **mesmo** Neon do backend (as tabelas `workspaces` e `usage_events` são compartilhadas).
+   - `NEXTAUTH_SECRET`/`AUTH_SECRET`, `NEXTAUTH_URL`, `ADMIN_EMAILS=seu@email.com` e `ADMIN_WORKSPACE_ID=pessoal`
+     (o admin continua vendo os dados criados no modo de senha única).
+   - Opcional: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` e `RESEND_API_KEY` (email de "esqueci a senha").
+   - Remova `SITE_PASSWORD_HASH`, `SITE_SESSION_SECRET` e `NEXT_PUBLIC_PERSONAL_MODE`: com o hash presente, a senha única continua valendo.
+3. Rode as migrações do Prisma no Neon: `npx prisma migrate deploy` dentro de `frontend/` com o `DATABASE_URL` de produção.
+4. Publique o backend e o frontend (abaixo) e crie a sua conta em `/cadastro` com o email de `ADMIN_EMAILS`.
+
+### Rate limit
+
+Os contadores ficam no Postgres (`rate_limit_buckets` no frontend, `api_rate_limits` no backend), então valem
+entre todas as instâncias da Vercel. Email e IP entram só como hash. Resposta acima do limite: `429` com `Retry-After`.
+
+| Onde | Limite |
+| --- | --- |
+| Login | 10 por email e 30 por IP a cada 15 min (login certo zera o do email) |
+| Cadastro | 5 por IP por hora |
+| Esqueci a senha | 5 por IP e 3 por email por hora (acima do limite por email a resposta não muda, para não revelar contas) |
+| Redefinir senha | 10 por IP a cada 15 min |
+| Token do backend | 60 por conta a cada 5 min |
+| Admin (liberar chave) / Stripe | 60 por minuto / 10 a cada 10 min |
+| Backend, por workspace | troca de chave 10/10 min; IA (relatório, formulário, perguntas) 60/10 min; ao vivo 60 transcrições e 20 sugestões por minuto; upload/processamento 30/10 min; cookies 10/10 min |
+
+No desktop o backend não limita nada (um usuário só, com a própria chave). Os valores ficam em `frontend/lib/rate-limit.ts`
+e `backend/app/core/rate_limit.py`.
+
 ## Publicar de novo
 
 ```bash
