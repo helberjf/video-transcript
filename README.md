@@ -93,7 +93,7 @@ The `electron/` package bundles the Next.js frontend and the FastAPI backend int
 
 - `build-release.bat` (or `npm run desktop:build`) generates the installer `Instalar ModeloIA.exe` locally, without publishing.
 - **Auto-update:** every time the installed app opens it checks [GitHub Releases](https://github.com/helberjf/video-transcript/releases) and, if there is a newer version, asks the user to download it and restart. Settings → "Verificar atualizacoes" checks on demand.
-- **Publishing a new version:** bump `version` in `package.json`, set `GH_TOKEN` (a GitHub token with `contents: write` on this repo) and run `publish-release.bat` (or `npm run desktop:release`). It builds the installer and uploads it plus `latest.yml` to a GitHub Release, which is what installed apps look for.
+- **Publishing a new version:** bump `version` in `package.json` and run `publish-release.bat` (or `npm run desktop:release`). It builds the installer and uploads it plus `latest.yml` to a GitHub Release, which is what installed apps look for. The script uses the `gh auth login` session of this machine (or `GH_TOKEN`, if set). End users need no GitHub access: the repo is public, so the app downloads releases anonymously — if the repo ever goes private, updates stop working.
 
 ## Access model: desktop vs web
 
