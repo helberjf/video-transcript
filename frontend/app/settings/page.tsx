@@ -135,7 +135,11 @@ export default function SettingsPage() {
   const youtubePollRef = useRef<number | null>(null);
 
   useEffect(() => {
-    void Promise.all([getSettings(), getTemplates(), getCookiesStatus(), getInstagramLoginStatus()])
+    // Na web o login em navegador controlado nao existe (o backend responde 404): segue como ocioso.
+    const instagramLoginStatus = getInstagramLoginStatus().catch(
+      (): InstagramLoginStatus => ({ state: "idle", message: null, cookies: null }),
+    );
+    void Promise.all([getSettings(), getTemplates(), getCookiesStatus(), instagramLoginStatus])
       .then(([settingsData, templateData, cookiesData, loginData]) => {
         setSettings(settingsData);
         setTemplates(templateData);
@@ -540,6 +544,8 @@ export default function SettingsPage() {
               </div>
             ) : null}
 
+            {access === "local" ? (
+            <>
             <div className="mt-4 rounded-2xl border border-sand/30 bg-sand/5 p-4">
               <p className="text-sm font-semibold text-ink">Login automatico (recomendado)</p>
               <p className="mt-1 text-xs leading-5 text-slate">
@@ -626,10 +632,17 @@ export default function SettingsPage() {
               ) : null}
             </div>
 
+            </>
+            ) : null}
+
             <div className="mt-4">
-              <p className="text-sm font-semibold text-ink">Upload manual (alternativa)</p>
+              <p className="text-sm font-semibold text-ink">
+                {access === "local" ? "Upload manual (alternativa)" : "Enviar cookies.txt"}
+              </p>
               <p className="mt-1 text-xs leading-5 text-slate">
-                Se preferir, exporte um cookies.txt no formato Netscape e envie aqui.
+                {access === "local"
+                  ? "Se preferir, exporte um cookies.txt no formato Netscape e envie aqui."
+                  : "Exporte um cookies.txt no formato Netscape e envie aqui. O arquivo fica criptografado, separado por conta, e só é usado nos seus downloads."}
               </p>
               <div className="mt-3 flex flex-wrap gap-3">
                 <input

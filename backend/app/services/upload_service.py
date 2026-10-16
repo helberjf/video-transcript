@@ -14,6 +14,7 @@ from app.models.upload import Upload
 from app.repositories.upload_repository import UploadRepository
 from app.schemas.upload import RemoteMediaSource
 from app.schemas.upload import UploadStatsResponse
+from app.services.cookies_service import scoped_cookies_file, workspace_cookies_scope
 from app.utils.files import detect_media_type, safe_unlink, save_upload_file, validate_upload
 
 
@@ -64,6 +65,9 @@ def _parse_cookies_from_browser(value: str | None) -> tuple[str, ...] | None:
 
 def _resolve_cookies_file() -> str | None:
     settings = get_settings()
+    if settings.backend_auth_required:
+        # Na web cada conta usa so os proprios cookies, nunca os do servidor ou de outra conta.
+        return scoped_cookies_file()
     default_cookies_path = Path(settings.temp_dir) / "cookies.txt"
     if default_cookies_path.exists():
         return str(default_cookies_path)
@@ -162,7 +166,7 @@ def _build_ydl_options(source: RemoteMediaSource, output_template: str) -> dict[
     else:
         ydl_options["format"] = "best[ext=mp4]/best"
 
-        cookies_from_browser = (
+        cookies_from_browser = None if get_settings().backend_auth_required else (
             os.environ.get("INSTAGRAM_COOKIES_FROM_BROWSER")
             or os.environ.get("YTDLP_COOKIES_FROM_BROWSER")
         )
@@ -384,6 +388,11 @@ def extract_remote_info_with_ssl_fallback(
 
 
 def create_upload_from_remote_url(db: Session, source: RemoteMediaSource, url: str, workspace_id: str = "local-workspace") -> Upload:
+    with workspace_cookies_scope(workspace_id):
+        return _create_upload_from_remote_url(db, source, url, workspace_id)
+
+
+def _create_upload_from_remote_url(db: Session, source: RemoteMediaSource, url: str, workspace_id: str) -> Upload:
     settings = get_settings()
     normalized_url = _validate_remote_media_url(source, url)
     download_prefix = f"remote-{os.urandom(4).hex()}"

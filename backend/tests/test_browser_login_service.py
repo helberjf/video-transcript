@@ -7,7 +7,7 @@ from app.services import browser_login_service, cookies_service
 
 @pytest.fixture()
 def temp_dir(tmp_path, monkeypatch: pytest.MonkeyPatch):
-    settings = SimpleNamespace(temp_dir=tmp_path)
+    settings = SimpleNamespace(temp_dir=tmp_path, backend_auth_required=False)
     monkeypatch.setattr(cookies_service, "get_settings", lambda: settings)
     monkeypatch.setattr(browser_login_service, "get_settings", lambda: settings)
     return tmp_path

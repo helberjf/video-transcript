@@ -12,6 +12,7 @@ duvida, a chave do dono nunca e usada.
 from sqlalchemy.orm import Session
 
 from app.core.ai_key_crypto import decrypt_api_key, encrypt_api_key
+from app.models.system_config import SystemConfig
 from app.models.workspace_ai_key import WorkspaceAiKey
 
 
@@ -20,6 +21,9 @@ ACCESS_SHARED = "shared"
 ACCESS_OWN = "own"
 ACCESS_VALUES = {ACCESS_ADMIN, ACCESS_SHARED, ACCESS_OWN}
 KEY_FIELDS = ("openai_api_key", "gemini_api_key", "claude_api_key")
+# Linha com as chaves do dono do sistema, cifradas como as das contas. Nenhum token gera este id:
+# normalize_workspace_id remove "_" das pontas.
+OWNER_KEYS_ID = "__owner__"
 
 
 def _can_query(db: Session) -> bool:
@@ -68,4 +72,17 @@ def save_own_keys(db: Session, workspace_id: str, updates: dict[str, str | None]
             continue
         value = (updates[field] or "").strip()
         setattr(row, field, encrypt_api_key(value, workspace_id) if value else None)
+    db.commit()
+
+
+def migrate_plaintext_owner_keys(db: Session, system_config: SystemConfig) -> None:
+    """Move para a linha cifrada as chaves que ficaram em texto puro no system_config."""
+    plaintext = {field: getattr(system_config, field) for field in KEY_FIELDS if getattr(system_config, field)}
+    if not plaintext:
+        return
+    current = read_own_keys(db, OWNER_KEYS_ID)
+    # Uma chave ja cifrada vale mais que a antiga em texto puro.
+    save_own_keys(db, OWNER_KEYS_ID, {field: value for field, value in plaintext.items() if not current.get(field)})
+    for field in plaintext:
+        setattr(system_config, field, None)
     db.commit()

@@ -48,6 +48,12 @@ Como funciona a chave de IA de cada conta:
   (`AI_KEYS_ENCRYPTION_KEY`) e guarda só o texto cifrado na tabela `workspace_ai_keys`. A tela mostra apenas o começo e o fim da chave.
   Essas contas não têm limite de créditos, porque pagam o provedor direto.
 - Sem workspace identificado, nenhuma chave é usada (a do admin nunca entra por engano).
+- A chave do admin também fica cifrada: o que for salvo em Ajustes vai para a linha `__owner__` de `workspace_ai_keys`.
+  Chaves antigas em texto puro no `system_config` são movidas para lá e apagadas na primeira leitura.
+  As variáveis de ambiente (`OPENAI_API_KEY` etc.) continuam valendo como reserva.
+- Cookies (`cookies.txt` do YouTube/Instagram) são por conta, cifrados na tabela `workspace_cookies`. Só viram arquivo,
+  num temporário apagado em seguida, durante um download daquela conta. Na web não existe o login em navegador
+  controlado (ele abriria uma janela no servidor); o envio é pelo arquivo exportado.
 
 Passo a passo:
 

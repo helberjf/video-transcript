@@ -1,10 +1,26 @@
+"""cookies.txt usado pelo yt-dlp no YouTube e no Instagram.
+
+No desktop e um arquivo so, na maquina da pessoa. Na web com contas cada conta tem o proprio,
+guardado cifrado no banco (AES-256-GCM): ele so vira arquivo, num temporario apagado logo depois,
+enquanto um download daquela conta esta rodando.
+"""
+
+import os
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
 from fastapi import HTTPException, UploadFile, status
 
+from app.core.ai_key_crypto import AiKeyCryptoError, decrypt_api_key, encrypt_api_key
 from app.core.config import get_settings
+from app.core.database import SessionLocal
+from app.core.request_context import current_workspace_id
+from app.models.workspace_cookies import WorkspaceCookies
 from app.schemas.cookies import CookiesStatus
 
 MAX_COOKIES_BYTES = 1 * 1024 * 1024
@@ -14,8 +30,35 @@ NETSCAPE_HEADER = (
 )
 
 
+# Arquivo temporario com os cookies decifrados da conta, valido so dentro de workspace_cookies_scope.
+_scoped_cookies_file: ContextVar[str | None] = ContextVar("scoped_cookies_file", default=None)
+
+
+def _web_accounts() -> bool:
+    return get_settings().backend_auth_required
+
+
 def _cookies_path() -> Path:
     return Path(get_settings().temp_dir) / "cookies.txt"
+
+
+def _encryption_context(workspace_id: str) -> str:
+    return f"cookies:{workspace_id}"
+
+
+def _require_workspace(workspace_id: str | None) -> str:
+    resolved = workspace_id or current_workspace_id.get()
+    if not resolved:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login necessario")
+    return resolved
+
+
+def _cookie_domains(raw: str) -> list[str]:
+    return [
+        line.split("	", 1)[0].lstrip(".").lower()
+        for line in raw.splitlines()
+        if line and not line.startswith("#")
+    ]
 
 
 def _write_netscape_cookies(rows: Iterable[dict]) -> CookiesStatus:
@@ -95,7 +138,27 @@ def _is_netscape_cookie_file(text: str) -> bool:
     return "netscape http cookie file" in head or "http cookie file" in head
 
 
-def read_cookies_status() -> CookiesStatus:
+def _read_workspace_status(workspace_id: str | None) -> CookiesStatus:
+    if not workspace_id:
+        return CookiesStatus(configured=False)
+    with SessionLocal() as db:
+        row = db.get(WorkspaceCookies, workspace_id)
+    if not row:
+        return CookiesStatus(configured=False)
+    return CookiesStatus(
+        configured=True,
+        updated_at=row.updated_at.replace(tzinfo=timezone.utc),
+        size_bytes=row.size_bytes,
+        total_lines=row.total_lines,
+        has_instagram=row.has_instagram,
+        has_youtube=row.has_youtube,
+    )
+
+
+def read_cookies_status(workspace_id: str | None = None) -> CookiesStatus:
+    if _web_accounts():
+        return _read_workspace_status(workspace_id or current_workspace_id.get())
+
     path = _cookies_path()
     if not path.exists():
         return CookiesStatus(configured=False)
@@ -124,7 +187,29 @@ def read_cookies_status() -> CookiesStatus:
     )
 
 
-def save_cookies_file(upload_file: UploadFile) -> CookiesStatus:
+def _save_workspace_cookies(workspace_id: str, text: str, size_bytes: int) -> CookiesStatus:
+    domains = _cookie_domains(text)
+    try:
+        encrypted = encrypt_api_key(text, _encryption_context(workspace_id))
+    except AiKeyCryptoError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="O servidor ainda nao esta pronto para guardar cookies com seguranca.",
+        ) from exc
+
+    with SessionLocal() as db:
+        row = db.get(WorkspaceCookies, workspace_id) or WorkspaceCookies(workspace_id=workspace_id)
+        row.content = encrypted
+        row.size_bytes = size_bytes
+        row.total_lines = len(domains)
+        row.has_instagram = any("instagram.com" in domain for domain in domains)
+        row.has_youtube = any("youtube.com" in domain or "google.com" in domain for domain in domains)
+        db.add(row)
+        db.commit()
+    return _read_workspace_status(workspace_id)
+
+
+def save_cookies_file(upload_file: UploadFile, workspace_id: str | None = None) -> CookiesStatus:
     if not upload_file.filename or not upload_file.filename.lower().endswith(".txt"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -150,14 +235,70 @@ def save_cookies_file(upload_file: UploadFile) -> CookiesStatus:
             detail="Formato invalido. Exporte os cookies em formato Netscape (cookies.txt).",
         )
 
+    if _web_accounts():
+        return _save_workspace_cookies(_require_workspace(workspace_id), text, len(raw_bytes))
+
     target = _cookies_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(raw_bytes)
     return read_cookies_status()
 
 
-def delete_cookies_file() -> CookiesStatus:
+def delete_cookies_file(workspace_id: str | None = None) -> CookiesStatus:
+    if _web_accounts():
+        resolved = _require_workspace(workspace_id)
+        with SessionLocal() as db:
+            row = db.get(WorkspaceCookies, resolved)
+            if row:
+                db.delete(row)
+                db.commit()
+        return _read_workspace_status(resolved)
+
     path = _cookies_path()
     if path.exists():
         path.unlink()
     return read_cookies_status()
+
+
+def _load_workspace_cookies(workspace_id: str) -> str | None:
+    with SessionLocal() as db:
+        row = db.get(WorkspaceCookies, workspace_id)
+        encrypted = row.content if row else None
+    return decrypt_api_key(encrypted, _encryption_context(workspace_id)) if encrypted else None
+
+
+@contextmanager
+def workspace_cookies_scope(workspace_id: str | None = None) -> Iterator[None]:
+    """Na web, deixa os cookies da conta num arquivo temporario so enquanto o bloco roda."""
+    if not _web_accounts():
+        yield
+        return
+
+    resolved = workspace_id or current_workspace_id.get()
+    content = _load_workspace_cookies(resolved) if resolved else None
+    if not content:
+        token = _scoped_cookies_file.set(None)
+        try:
+            yield
+        finally:
+            _scoped_cookies_file.reset(token)
+        return
+
+    folder = Path(get_settings().temp_dir) / "cookies"
+    folder.mkdir(parents=True, exist_ok=True)
+    handle, path = tempfile.mkstemp(prefix="conta-", suffix=".txt", dir=folder)
+    token = _scoped_cookies_file.set(path)
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as file:
+            file.write(content)
+        os.chmod(path, 0o600)
+        yield
+    finally:
+        _scoped_cookies_file.reset(token)
+        Path(path).unlink(missing_ok=True)
+
+
+def scoped_cookies_file() -> str | None:
+    """Arquivo de cookies da conta atual, quando dentro de workspace_cookies_scope."""
+    path = _scoped_cookies_file.get()
+    return path if path and Path(path).exists() else None

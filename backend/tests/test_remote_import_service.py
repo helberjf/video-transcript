@@ -16,6 +16,7 @@ def test_create_upload_from_remote_url_creates_upload_record(tmp_path, monkeypat
         temp_dir=tmp_path / "temp",
         max_upload_bytes=50 * 1024 * 1024,
         max_upload_mb=50,
+        backend_auth_required=False,
     )
     settings.temp_dir.mkdir()
 
@@ -63,7 +64,7 @@ def test_create_upload_from_remote_url_creates_upload_record(tmp_path, monkeypat
 
 
 def test_create_upload_from_remote_url_rejects_invalid_source_url(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=Path("."), uploads_dir=Path(".")))
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=Path("."), uploads_dir=Path("."), backend_auth_required=False))
 
     with pytest.raises(upload_service.HTTPException) as exc_info:
         upload_service.create_upload_from_remote_url(db=object(), source="instagram", url="https://youtube.com/watch?v=abc")
@@ -78,7 +79,7 @@ def test_build_ydl_options_for_youtube_uses_cookie_file_but_never_the_browser(
     """O cookies.txt libera o bloqueio anonimo; ler do navegador quebra por DPAPI."""
     cookie_file = tmp_path / "cookies.txt"
     cookie_file.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
-    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp", backend_auth_required=False))
     monkeypatch.setenv("INSTAGRAM_COOKIES_FILE", str(cookie_file))
     monkeypatch.setenv("YTDLP_COOKIES_FROM_BROWSER", "chrome:Default")
 
@@ -94,7 +95,7 @@ def test_build_ydl_options_for_youtube_without_cookie_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp", backend_auth_required=False))
     monkeypatch.delenv("INSTAGRAM_COOKIES_FILE", raising=False)
     monkeypatch.delenv("YTDLP_COOKIES_FILE", raising=False)
     monkeypatch.setenv("YTDLP_COOKIES_FROM_BROWSER", "chrome:Default")
@@ -131,7 +132,7 @@ def test_build_ydl_options_for_instagram_uses_configured_cookie_file(
 ) -> None:
     cookie_file = tmp_path / "cookies.txt"
     cookie_file.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
-    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp", backend_auth_required=False))
     monkeypatch.setenv("INSTAGRAM_COOKIES_FILE", str(cookie_file))
     monkeypatch.setenv("YTDLP_COOKIES_FROM_BROWSER", "chrome:Default")
 
@@ -146,7 +147,7 @@ def test_youtube_bot_block_retries_with_alternate_player_client_without_cookies(
     tmp_path: Path,
 ) -> None:
     # Sem isolar o temp_dir, o cookies.txt real da maquina entra nas opcoes.
-    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp", backend_auth_required=False))
     monkeypatch.delenv("INSTAGRAM_COOKIES_FILE", raising=False)
     monkeypatch.delenv("YTDLP_COOKIES_FILE", raising=False)
     calls: list[dict[str, object]] = []
@@ -237,7 +238,7 @@ def test_android_stays_in_the_fallback_chain() -> None:
 
 
 def test_every_fallback_client_is_tried_before_giving_up(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp", backend_auth_required=False))
     tentados: list[str] = []
 
     class FakeYoutubeDL:
@@ -273,7 +274,7 @@ def test_youtube_page_reload_error_continues_to_later_player_clients(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp"))
+    monkeypatch.setattr(upload_service, "get_settings", lambda: SimpleNamespace(temp_dir=tmp_path / "app-temp", backend_auth_required=False))
     tentados: list[str] = []
 
     class FakeYoutubeDL:

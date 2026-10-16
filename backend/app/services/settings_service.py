@@ -14,7 +14,9 @@ from app.services.ai_key_service import (
     ACCESS_ADMIN,
     ACCESS_SHARED,
     KEY_FIELDS,
+    OWNER_KEYS_ID,
     get_ai_key_access,
+    migrate_plaintext_owner_keys,
     read_own_keys,
     save_own_keys,
     uses_owner_keys,
@@ -160,6 +162,14 @@ def _web_accounts_enabled() -> bool:
     return get_settings().backend_auth_required
 
 
+def _owner_keys(db: Session, system_config: SystemConfig) -> dict[str, str | None]:
+    """Chaves do dono na web: cifradas no banco, com as variaveis de ambiente como reserva."""
+    migrate_plaintext_owner_keys(db, system_config)
+    app_settings = get_settings()
+    stored = read_own_keys(db, OWNER_KEYS_ID)
+    return {field: stored.get(field) or getattr(app_settings, field) for field in KEY_FIELDS}
+
+
 def _workspace_api_keys(db: Session, workspace_id: str | None, global_keys: dict[str, str | None]) -> dict[str, str | None]:
     if not workspace_id:
         return {field: None for field in KEY_FIELDS}
@@ -191,7 +201,7 @@ def get_effective_provider_settings(db: Session, workspace_id: str | None = None
         "default_report_template_id": system_config.default_report_template_id,
     }
     if _web_accounts_enabled():
-        global_keys = {field: effective[field] for field in KEY_FIELDS}
+        global_keys = _owner_keys(db, system_config)
         effective.update(_workspace_api_keys(db, workspace_id or current_workspace_id.get(), global_keys))
     return effective
 
@@ -234,6 +244,17 @@ def update_settings(db: Session, payload: SettingsUpdate, workspace_id: str | No
     repository = SettingsRepository(db)
     config = get_or_create_system_config(db)
     update_data = payload.model_dump(exclude_unset=True)
+    if access == ACCESS_ADMIN:
+        # Na web a chave do dono tambem fica cifrada; system_config so guarda os demais ajustes.
+        key_updates = {field: update_data.pop(field) for field in list(update_data) if field in KEY_FIELDS}
+        if key_updates:
+            try:
+                save_own_keys(db, OWNER_KEYS_ID, key_updates)
+            except AiKeyCryptoError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="O servidor ainda nao esta pronto para guardar chaves com seguranca.",
+                ) from exc
     for field, value in update_data.items():
         if field in ORDER_FIELDS:
             setattr(config, field, _serialize_provider_order(value if isinstance(value, list) else None, ORDER_FIELDS[field]))
@@ -241,7 +262,7 @@ def update_settings(db: Session, payload: SettingsUpdate, workspace_id: str | No
         setattr(config, field, value)
     repository.save(config)
     _sync_env_values(update_data)
-    return read_settings(db)
+    return read_settings(db, workspace_id)
 
 
 def _update_account_keys(db: Session, payload: SettingsUpdate, workspace_id: str | None, access: str) -> SettingsRead:

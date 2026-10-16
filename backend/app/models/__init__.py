@@ -9,6 +9,7 @@ from app.models.report_template import ReportTemplate
 from app.models.system_config import SystemConfig
 from app.models.upload import Upload
 from app.models.workspace_ai_key import WorkspaceAiKey
+from app.models.workspace_cookies import WorkspaceCookies
 
 __all__ = [
     "ApiRateLimit",
@@ -23,4 +24,5 @@ __all__ = [
     "UsageEvent",
     "Workspace",
     "WorkspaceAiKey",
+    "WorkspaceCookies",
 ]

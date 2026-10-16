@@ -7,7 +7,9 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
+from app.core.config import get_settings
 from app.schemas.instagram import InstagramPostInfo, InstagramPostReadResponse, InstagramSlide
+from app.services.cookies_service import workspace_cookies_scope
 from app.services.upload_service import (
     _build_ydl_options,
     _remote_download_error_message,
@@ -144,6 +146,8 @@ def _collect_slides(raw_info: dict[str, Any]) -> list[InstagramSlide]:
 
 
 def _used_cookies() -> bool:
+    if get_settings().backend_auth_required:
+        return bool(_resolve_cookies_file())
     return bool(
         _resolve_cookies_file()
         or os.environ.get("INSTAGRAM_COOKIES_FROM_BROWSER")
@@ -229,6 +233,11 @@ def _build_prompt_seed(post: InstagramPostInfo, suggestions: list[str]) -> str:
 
 
 def inspect_instagram_post(url: str) -> InstagramPostReadResponse:
+    with workspace_cookies_scope():
+        return _inspect_instagram_post(url)
+
+
+def _inspect_instagram_post(url: str) -> InstagramPostReadResponse:
     normalized_url = _validate_remote_media_url("instagram", url)
 
     ydl_options = _build_ydl_options("instagram", "%(id)s.%(ext)s")

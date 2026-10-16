@@ -7,7 +7,7 @@ from app.services import cookies_service
 
 
 def test_write_netscape_cookies_writes_valid_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    settings = SimpleNamespace(temp_dir=tmp_path)
+    settings = SimpleNamespace(temp_dir=tmp_path, backend_auth_required=False)
     monkeypatch.setattr(cookies_service, "get_settings", lambda: settings)
 
     rows = [

@@ -25,6 +25,7 @@ from app.schemas.instagram import (
     InstagramAnalyzeSlideResult,
     InstagramSlide,
 )
+from app.services.cookies_service import workspace_cookies_scope
 from app.services.instagram_post_service import (
     _collect_slides,
     _extract_short_code,
@@ -326,7 +327,7 @@ def get_analyze_job(db: Session, job_id: str, workspace_id: str) -> InstagramAna
 
 def _run_job_in_background(job_id: str, url: str, workspace_id: str) -> None:
     # A thread nao herda o contexto da requisicao: sem isto a chave de IA seria a errada.
-    with workspace_scope(workspace_id):
+    with workspace_scope(workspace_id), workspace_cookies_scope(workspace_id):
         _run_job(job_id, url)
 
 
