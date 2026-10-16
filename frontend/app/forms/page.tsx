@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { HowToButton, type HowToStep } from "@/components/how-to-button";
 import { SectionHeader } from "@/components/section-header";
 import {
   SelectableWords,
@@ -41,6 +42,45 @@ const EXPORT_OPTIONS: { extension: ReportExportExtension; label: string }[] = [
 ];
 
 type Mode = "fields" | "text" | "audio" | "paper";
+
+const HOW_TO_STEPS: HowToStep[] = [
+  {
+    title: "Cadastre o documento modelo (uma vez só)",
+    description:
+      "Em Modelos, envie o PDF ou Word do documento que você sempre preenche, com os dados em branco. Pode ser PDF escaneado. A IA lê o padrão e cria os campos (nome, CPF, endereço, datas...).",
+    link: { href: "/templates", label: "Ir para Modelos" },
+  },
+  {
+    title: "Escolha o modelo aqui em Formulários",
+    description: "Selecione o modelo cadastrado no campo \"Modelo\" desta tela.",
+  },
+  {
+    title: "Abra a aba \"Escanear anotações\"",
+    description:
+      "No celular, \"Tirar foto\" abre a câmera. No computador, use \"Escolher fotos ou PDF\". Se as anotações ocuparem várias folhas, envie todas.",
+  },
+  {
+    title: "Clique em \"Escanear e preencher campos\"",
+    description:
+      "A IA lê o que está escrito (até à mão) e coloca cada dado no campo certo. Leva poucos segundos.",
+  },
+  {
+    title: "Confira os campos",
+    description:
+      "Revise os valores. Os campos marcados com \"conferir\" tinham letra difícil de ler: compare com o papel e corrija se precisar.",
+  },
+  {
+    title: "Gere e baixe o documento pronto",
+    description: "Clique em \"Gerar documento pronto\", revise o texto e baixe em Word (DOCX) ou PDF.",
+  },
+];
+
+const HOW_TO_TIPS = [
+  "Fotografe com boa luz, o papel inteiro no enquadramento e sem sombra sobre a escrita.",
+  "Os dados não precisam estar na ordem do documento: a IA reconhece pelo significado (\"nasc.\" vira data de nascimento, \"doc\" vira CPF...).",
+  "O que não estiver no papel fica em branco para você completar.",
+  "Também dá para preencher digitando nos Campos, colando um Texto ou gravando um Áudio.",
+];
 
 const ACCEPTED_PAPER = "image/*,.pdf,application/pdf";
 
@@ -707,6 +747,14 @@ export default function FormsPage() {
         eyebrow="Formularios"
         title="Preencha documentos por campos, texto, audio ou anotações escaneadas"
         description="Escolha um modelo, preencha os campos variaveis, cole um texto, grave um audio ou fotografe o papel com os dados (mesmo escrito a mao). A IA coloca cada dado no campo certo e entrega o documento pronto para revisar e baixar."
+        action={
+          <HowToButton
+            title="Do papel ao documento pronto"
+            intro="Transforme anotações (até escritas à mão) em um documento preenchido, usando o seu documento modelo."
+            steps={HOW_TO_STEPS}
+            tips={HOW_TO_TIPS}
+          />
+        }
       />
 
       {error ? <div className="panel p-6 text-sm text-ember">{error}</div> : null}
