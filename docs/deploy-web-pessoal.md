@@ -50,3 +50,9 @@ cd ../../frontend && vercel deploy --prod
 - **Sem Whisper local nem ffmpeg:** a transcrição usa só as APIs, então as chaves de OpenAI/Gemini precisam estar em Ajustes, na própria web.
 - **Tempo de processamento:** cada reunião tem até 300 s para ser processada (plano Hobby), o que costuma cobrir reuniões de até ~1 h.
 - **Espaço:** o Neon grátis tem 0,5 GB, o que dá ~30 h de áudio a 32 kbps mais as capturas.
+
+## Builds automáticos pelo GitHub desligados
+
+O `vercel.json` da raiz tem `git.deploymentEnabled: false`. Os projetos antigos da conta helberjf (`video-transcript` e `video-transcript-ggix`) estavam ligados ao repositório com configuração errada: framework "Services" ou Flask, sem Root Directory. Por isso falhavam a cada push desde agosto. Com esse arquivo, um push não dispara mais build neles.
+
+A web pessoal é publicada pela CLI, a partir de `frontend/` e de `.vercel-build/backend`, e não depende do GitHub. Para voltar a usar o deploy automático, apague o arquivo ou troque para `true`. Antes, configure o projeto com Root Directory = `frontend` e framework Next.js.
