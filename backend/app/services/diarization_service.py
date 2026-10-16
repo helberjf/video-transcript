@@ -14,11 +14,14 @@ from app.core.config import get_settings
 from app.models.enums import TranscriptionEngine
 from app.services.settings_service import get_effective_provider_settings
 from app.services.transcription_service import (
+    AUTO_WHISPER_MODEL,
     ProviderExecutionError,
     _configured_transcription_provider_order,
     _language_hint,
     _log_provider_failure,
     _run_with_retries,
+    run_whisper_chain,
+    whisper_model_chain,
 )
 
 
@@ -217,4 +220,7 @@ def transcribe_with_speakers(db: Session, audio_path: str | Path, language: str 
             break
 
     whisper_model = str(config.get("whisper_model") or settings.whisper_model)
-    return _run_with_retries(lambda: _transcribe_whisper_segments(target, language, whisper_model), retries)
+    return run_whisper_chain(
+        lambda model_name: _transcribe_whisper_segments(target, language, model_name),
+        whisper_model_chain(whisper_model, AUTO_WHISPER_MODEL),
+    )

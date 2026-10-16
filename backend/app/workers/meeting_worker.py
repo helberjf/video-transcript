@@ -22,6 +22,7 @@ from app.services.meeting_service import (
     suggest_speaker_names,
 )
 from app.services.recording_service import read_energy, read_meta, recording_key
+from app.services.transcription_service import describe_error
 from app.services.usage_service import audio_video_credits, consume_credits
 from app.utils.ffmpeg import probe_duration_seconds, transcode_for_transcription
 from app.workers.scope import upload_workspace_scope
@@ -67,7 +68,7 @@ def _process_meeting(upload_id: str) -> None:
         upload = repository.get(upload_id)
         if upload:
             upload.status = ProcessingStatus.ERROR
-            upload.error_message = str(exc) or exc.__class__.__name__
+            upload.error_message = describe_error(exc)
             repository.save(upload)
     finally:
         db.close()

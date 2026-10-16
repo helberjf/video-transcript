@@ -1,8 +1,9 @@
+import gc
 import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, TypeVar
 
 from sqlalchemy.orm import Session
 
@@ -28,8 +29,22 @@ class TranscriptionResult:
 
 TranscriptionProviderName = Literal["openai", "gemini", "whisper"]
 
+T = TypeVar("T")
 
-def _run_with_retries(func: Callable[[], TranscriptionResult], retries: int) -> TranscriptionResult:
+# Do mais pesado para o mais leve: e a ordem de queda quando um modelo nao carrega.
+WHISPER_MODELS_BY_SIZE = ["large", "medium", "small", "base", "tiny"]
+# Sem nenhuma API disponivel, o Whisper automatico usa no maximo este modelo.
+AUTO_WHISPER_MODEL = "medium"
+
+
+def describe_error(error: BaseException) -> str:
+    """MemoryError() vem sem mensagem; sem isto o usuario via so 'ProviderExecutionError'."""
+    if isinstance(error, MemoryError):
+        return "memoria insuficiente para carregar o modelo"
+    return str(error).strip() or error.__class__.__name__
+
+
+def _run_with_retries(func: Callable[[], T], retries: int) -> T:
     last_error: Exception | None = None
     for attempt in range(retries + 1):
         try:
@@ -39,7 +54,43 @@ def _run_with_retries(func: Callable[[], TranscriptionResult], retries: int) -> 
             if attempt >= retries:
                 break
             time.sleep(min(2 * (attempt + 1), 5))
-    raise ProviderExecutionError(str(last_error) if last_error else "Falha no provedor")
+    raise ProviderExecutionError(describe_error(last_error) if last_error else "Falha no provedor")
+
+
+def _whisper_size_rank(model_name: str) -> int:
+    """Posicao em WHISPER_MODELS_BY_SIZE; large-v3, turbo e nomes desconhecidos contam como o mais pesado."""
+    base_name = model_name.strip().lower().split(".")[0]
+    if base_name in WHISPER_MODELS_BY_SIZE:
+        return WHISPER_MODELS_BY_SIZE.index(base_name)
+    return 0
+
+
+def whisper_model_chain(model_name: str, max_model: str | None = None) -> list[str]:
+    """Modelo escolhido (limitado a max_model) seguido de todos os mais leves que ele."""
+    start = model_name.strip() or AUTO_WHISPER_MODEL
+    if max_model and _whisper_size_rank(start) < _whisper_size_rank(max_model):
+        start = max_model
+    start_rank = _whisper_size_rank(start)
+    lighter = [name for name in WHISPER_MODELS_BY_SIZE if _whisper_size_rank(name) > start_rank]
+    return [start, *lighter]
+
+
+def run_whisper_chain(run: Callable[[str], T], models: list[str]) -> T:
+    """Tenta cada modelo uma vez: falta de memoria nao melhora repetindo o mesmo modelo."""
+    failures: list[str] = []
+    for index, model_name in enumerate(models):
+        try:
+            return run(model_name)
+        except Exception as exc:
+            detail = describe_error(exc)
+            failures.append(f"{model_name}: {detail}")
+            next_step = ", tentando um modelo mais leve" if index + 1 < len(models) else ""
+            message = f"[whisper] modelo '{model_name}' falhou ({detail[:300]}){next_step}"
+            logger.warning(message)
+            print(message, flush=True)
+            # Libera o que sobrou do modelo que nao coube antes de carregar o proximo.
+            gc.collect()
+    raise ProviderExecutionError("Whisper falhou em todos os modelos: " + "; ".join(failures))
 
 
 def _language_hint(language: str | None) -> str | None:
@@ -175,7 +226,7 @@ def _transcription_provider_order(
 
 def _log_provider_failure(provider: str, error: Exception) -> None:
     """A troca silenciosa de provedor escondia erros de rede, chave e TLS."""
-    detail = str(error).strip() or error.__class__.__name__
+    detail = describe_error(error)
     message = f"[transcricao] {provider} falhou, tentando o proximo provedor: {detail[:300]}"
     logger.warning(message)
     print(message, flush=True)
@@ -194,6 +245,14 @@ def transcribe_audio(
     config = get_effective_provider_settings(db)
     target_path = Path(audio_path)
     retries = settings.provider_retries
+
+    selected_whisper_model = whisper_model_override or str(config.get("whisper_model") or settings.whisper_model)
+    # Whisper pedido pelo usuario respeita o modelo escolhido; no automatico (sem API) vai no maximo ate o medium.
+    whisper_forced = not use_api or _normalize_provider(transcription_provider_preference) == "whisper"
+    whisper_models = whisper_model_chain(selected_whisper_model, None if whisper_forced else AUTO_WHISPER_MODEL)
+
+    def transcribe_with_whisper() -> TranscriptionResult:
+        return run_whisper_chain(lambda model_name: _transcribe_whisper(target_path, language, model_name), whisper_models)
 
     for provider in _transcription_provider_order(
         config,
@@ -219,8 +278,6 @@ def transcribe_audio(
                     continue
 
         if provider == "whisper":
-            whisper_model = whisper_model_override or str(config.get("whisper_model") or settings.whisper_model)
-            return _run_with_retries(lambda: _transcribe_whisper(target_path, language, whisper_model), retries)
+            return transcribe_with_whisper()
 
-    whisper_model = whisper_model_override or str(config.get("whisper_model") or settings.whisper_model)
-    return _run_with_retries(lambda: _transcribe_whisper(target_path, language, whisper_model), retries)
+    return transcribe_with_whisper()

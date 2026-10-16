@@ -6,7 +6,7 @@ from app.core.database import SessionLocal
 from app.models.enums import FileType, ProcessingStatus, TranscriptionEngine
 from app.repositories.upload_repository import UploadRepository
 from app.services.settings_service import get_effective_provider_settings
-from app.services.transcription_service import transcribe_audio
+from app.services.transcription_service import describe_error, transcribe_audio
 from app.services.usage_service import audio_video_credits, consume_credits
 from app.utils.ffmpeg import extract_audio_to_mp3, normalize_audio, probe_duration_seconds
 from app.utils.files import safe_unlink
@@ -108,7 +108,7 @@ def _process_upload(
         upload = repository.get(upload_id)
         if upload:
             upload.status = ProcessingStatus.ERROR
-            upload.error_message = str(exc) or exc.__class__.__name__
+            upload.error_message = describe_error(exc)
             repository.save(upload)
     finally:
         db.close()
