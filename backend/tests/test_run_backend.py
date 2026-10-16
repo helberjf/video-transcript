@@ -39,3 +39,22 @@ def test_run_backend_enables_reload_flag(monkeypatch) -> None:
 
     assert captured["reload"] is True
     assert captured["app_path"] == "app.main:app"
+
+def test_startup_retries_when_another_instance_creates_the_same_table(monkeypatch) -> None:
+    from sqlalchemy.exc import ProgrammingError
+
+    import app.main as main
+
+    calls = []
+
+    def create_all(bind):
+        calls.append(bind)
+        if len(calls) == 1:
+            raise ProgrammingError("CREATE TABLE workspace_cookies", {}, Exception("already exists"))
+
+    monkeypatch.setattr(main.Base.metadata, "create_all", create_all)
+    monkeypatch.setattr(main.time, "sleep", lambda _: None)
+
+    main._create_tables()
+
+    assert len(calls) == 2
