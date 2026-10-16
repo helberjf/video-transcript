@@ -22,6 +22,7 @@ from app.services.report_service import (
     write_docx_export,
     write_pdf_export,
 )
+from app.services.placeholders import match_placeholder_key
 from app.services.settings_service import get_effective_provider_settings
 
 
@@ -281,6 +282,10 @@ def _substitute_placeholders(example_output: str, fields: dict[str, str]) -> str
         for candidate in candidates:
             if candidate in fields:
                 return fields[candidate]
+        # Modelos antigos podem ter lacunas que nao batem exatamente com o nome do campo.
+        matched = match_placeholder_key(raw_key, set(fields))
+        if matched is not None:
+            return fields[matched]
         return match.group(0)
 
     return re.sub(r"\{\{\s*([^}]+?)\s*\}\}", replace, example_output)

@@ -17,6 +17,7 @@ import type {
   CaptureTrigger,
   FormDetectFieldsPayload,
   FormDetectFieldsResponse,
+  FormPaperReadResponse,
   FormExportPayload,
   FormFillFieldsPayload,
   FormFillPayload,
@@ -392,6 +393,27 @@ export function detectFormFields(payload: FormDetectFieldsPayload) {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+/** Fotos ou PDF do papel (inclusive escrito a mão): a IA lê e devolve os valores dos campos do modelo. */
+export async function readPaperFields(templateId: string, files: File[], additionalInstructions?: string | null) {
+  const authHeaders = await getApiAuthHeaders();
+  const formData = new FormData();
+  formData.append("template_id", templateId);
+  files.forEach((file) => formData.append("files", file, file.name));
+  if (additionalInstructions) {
+    formData.append("additional_instructions", additionalInstructions);
+  }
+  const response = await fetch(`${API_BASE}/forms/read-paper`, {
+    method: "POST",
+    headers: authHeaders,
+    body: formData,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.json().catch(() => null)));
+  }
+  return (await response.json()) as FormPaperReadResponse;
 }
 
 export async function exportForm(payload: FormExportPayload): Promise<{ blob: Blob; filename: string | null }> {

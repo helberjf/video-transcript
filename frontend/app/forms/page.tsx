@@ -16,6 +16,7 @@ import {
   exportForm,
   fillForm,
   fillFormByFields,
+  readPaperFields,
   getSettings,
   getTemplates,
   getUpload,
@@ -39,7 +40,9 @@ const EXPORT_OPTIONS: { extension: ReportExportExtension; label: string }[] = [
   { extension: "pdf", label: "PDF" },
 ];
 
-type Mode = "fields" | "text" | "audio";
+type Mode = "fields" | "text" | "audio" | "paper";
+
+const ACCEPTED_PAPER = "image/*,.pdf,application/pdf";
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -176,6 +179,9 @@ export default function FormsPage() {
   const [aiPolish, setAiPolish] = useState(true);
   const [detectingFields, setDetectingFields] = useState(false);
   const [detectingAudioFields, setDetectingAudioFields] = useState(false);
+  const [paperFiles, setPaperFiles] = useState<File[]>([]);
+  const [readingPaper, setReadingPaper] = useState(false);
+  const [uncertainFields, setUncertainFields] = useState<string[]>([]);
   const [detectMessage, setDetectMessage] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -237,7 +243,12 @@ export default function FormsPage() {
     () => new Set(Object.values(sourceSelections).flat()),
     [sourceSelections],
   );
-  const fieldDetectionBusy = detectingFields || detectingAudioFields;
+  const fieldDetectionBusy = detectingFields || detectingAudioFields || readingPaper;
+  const paperPreviews = useMemo(
+    () => paperFiles.map((file) => ({ file, url: file.type.startsWith("image/") ? URL.createObjectURL(file) : null })),
+    [paperFiles],
+  );
+  useEffect(() => () => paperPreviews.forEach((item) => item.url && URL.revokeObjectURL(item.url)), [paperPreviews]);
 
   useEffect(() => {
     if (skipModeResetRef.current) {
@@ -377,6 +388,9 @@ export default function FormsPage() {
   };
 
   const resolveSourceText = async (): Promise<string> => {
+    if (mode === "paper") {
+      throw new Error('Clique em "Escanear e preencher campos" primeiro; depois revise os campos e gere o documento.');
+    }
     if (mode === "text") {
       if (!sourceText.trim()) {
         throw new Error("Digite ou cole um texto para preencher o formulario.");
@@ -516,6 +530,51 @@ export default function FormsPage() {
     }
   };
 
+  // Foto/scan do papel com os dados (muitas vezes escritos à mão) -> campos do modelo.
+  const readPaper = async () => {
+    if (!templateId) {
+      setError("Escolha um modelo antes de ler o papel.");
+      return;
+    }
+    if (paperFiles.length === 0) {
+      setError("Tire uma foto ou envie o PDF do papel com os dados.");
+      return;
+    }
+    if (templateFields.length === 0) {
+      setError("Este modelo ainda nao tem campos definidos.");
+      return;
+    }
+
+    setReadingPaper(true);
+    setError(null);
+    setResult(null);
+    setDetectMessage(null);
+    setStatusMessage("A IA esta escaneando as anotações...");
+    try {
+      const read = await readPaperFields(templateId, paperFiles, additionalInstructions || null);
+      const transcription = read.transcription.trim();
+      const tokens = tokenizeSelectableWords(transcription, SOURCE_WORD_KEY_PREFIX);
+      skipModeResetRef.current = true;
+      setMode("fields");
+      if (transcription !== sourceText) {
+        skipSourceTextResetRef.current = true;
+        setSourceText(transcription);
+      }
+      const filledCount = applyDetectedFields(read.fields, tokens);
+      setUncertainFields(read.uncertain_fields);
+      const uncertainNote = read.uncertain_fields.length
+        ? ` Confira ${read.uncertain_fields.length} campo(s) marcado(s) com "conferir": a letra estava dificil de ler.`
+        : "";
+      setDetectMessage(`${filledCount} de ${templateFields.length} campo(s) preenchido(s) a partir do papel.${uncertainNote}`);
+      setStatusMessage("Anotações escaneadas. Revise os campos e gere o documento pronto.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao ler o papel.");
+      setStatusMessage(null);
+    } finally {
+      setReadingPaper(false);
+    }
+  };
+
   const submit = async () => {
     if (!templateId) {
       setError("Escolha um modelo antes de preencher.");
@@ -634,14 +693,20 @@ export default function FormsPage() {
     },
     { id: "text", label: "Texto", description: "Cole as informacoes do formulario." },
     { id: "audio", label: "Audio", description: "Grave ou envie para transcrever." },
+    {
+      id: "paper",
+      label: "Escanear anotações",
+      description: "Foto do papel, até escrito à mão.",
+      disabled: templateFields.length === 0,
+    },
   ];
 
   return (
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Formularios"
-        title="Preencha documentos por campos, texto ou audio"
-        description="Escolha um modelo, preencha os campos variaveis (ou envie texto/audio), e a IA sugere um documento pronto para revisao e download."
+        title="Preencha documentos por campos, texto, audio ou anotações escaneadas"
+        description="Escolha um modelo, preencha os campos variaveis, cole um texto, grave um audio ou fotografe o papel com os dados (mesmo escrito a mao). A IA coloca cada dado no campo certo e entrega o documento pronto para revisar e baixar."
       />
 
       {error ? <div className="panel p-6 text-sm text-ember">{error}</div> : null}
@@ -673,7 +738,7 @@ export default function FormsPage() {
               <input className="field" value={title} onChange={(event) => setTitle(event.target.value)} />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {availableModes.map((item) => (
                 <button
                   key={item.id}
@@ -809,6 +874,11 @@ export default function FormsPage() {
                           <label className="text-sm font-medium">
                             {field.label}
                             {field.required ? <span className="ml-1 text-ember">*</span> : null}
+                            {uncertainFields.includes(field.key) ? (
+                              <span className="ml-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                                conferir
+                              </span>
+                            ) : null}
                           </label>
                           <button
                             className={`rounded-2xl border px-3 py-2 text-xs font-medium transition ${
@@ -863,6 +933,82 @@ export default function FormsPage() {
                     </label>
                   </>
                 )}
+              </div>
+            ) : null}
+
+            {mode === "paper" ? (
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-sand/20 bg-sand/[0.06] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Escanear anotações</p>
+                  <p className="mt-2 text-sm leading-6 text-slate">
+                    Fotografe o papel onde os dados foram anotados (pode ser escrito a mao) ou envie o PDF escaneado. Se forem varias paginas,
+                    envie todas. A IA le o que esta escrito e coloca cada dado no campo certo deste modelo.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <label className={`button-secondary cursor-pointer ${fieldDetectionBusy || busy ? "pointer-events-none opacity-50" : ""}`}>
+                      Tirar foto
+                      <input
+                        className="hidden"
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(event) => {
+                          const files = Array.from(event.target.files ?? []);
+                          setPaperFiles((current) => [...current, ...files].slice(0, 10));
+                          event.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <label className={`button-secondary cursor-pointer ${fieldDetectionBusy || busy ? "pointer-events-none opacity-50" : ""}`}>
+                      Escolher fotos ou PDF
+                      <input
+                        className="hidden"
+                        type="file"
+                        accept={ACCEPTED_PAPER}
+                        multiple
+                        onChange={(event) => {
+                          const files = Array.from(event.target.files ?? []);
+                          setPaperFiles((current) => [...current, ...files].slice(0, 10));
+                          event.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <button
+                      className="button-primary"
+                      type="button"
+                      disabled={paperFiles.length === 0 || fieldDetectionBusy || busy}
+                      onClick={() => void readPaper()}
+                    >
+                      {readingPaper ? "Escaneando..." : "Escanear e preencher campos"}
+                    </button>
+                  </div>
+                </div>
+
+                {paperPreviews.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {paperPreviews.map((item, index) => (
+                      <figure key={`${item.file.name}-${index}`} className="rounded-2xl border border-white/10 p-2 text-xs text-slate">
+                        {item.url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={item.url} alt="" className="aspect-[3/4] w-full rounded-xl object-cover" />
+                        ) : (
+                          <div className="grid aspect-[3/4] w-full place-items-center rounded-xl bg-white/[0.04] text-sm font-semibold text-sand">PDF</div>
+                        )}
+                        <figcaption className="mt-2 flex items-center justify-between gap-2">
+                          <span className="truncate">{item.file.name}</span>
+                          <button
+                            className="text-rose-300 hover:underline"
+                            type="button"
+                            disabled={readingPaper}
+                            onClick={() => setPaperFiles((current) => current.filter((_, position) => position !== index))}
+                          >
+                            Remover
+                          </button>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

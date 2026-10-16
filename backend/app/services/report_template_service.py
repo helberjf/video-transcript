@@ -11,7 +11,6 @@ from xml.etree import ElementTree
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.models.report_template import ReportTemplate
 from app.repositories.report_template_repository import ReportTemplateRepository
 from app.schemas.report_template import (
@@ -21,6 +20,7 @@ from app.schemas.report_template import (
     ReportTemplateUpdate,
 )
 from app.services.report_service import _generate_claude, _generate_gemini, _generate_openai, _report_provider_order
+from app.services.placeholders import reconcile_placeholders, slugify_field_key
 from app.services.settings_service import get_effective_provider_settings
 
 
@@ -208,14 +208,7 @@ _FIELD_KEY_PATTERN = re.compile(r"[^a-z0-9_]+")
 _PLACEHOLDER_PATTERN = re.compile(r"\{\{\s*([^}]+?)\s*\}\}")
 
 
-def _slugify_field_key(raw: str) -> str:
-    simplified = raw.strip().lower()
-    simplified = simplified.replace("ç", "c").replace("ã", "a").replace("á", "a").replace("à", "a")
-    simplified = simplified.replace("â", "a").replace("é", "e").replace("ê", "e").replace("í", "i")
-    simplified = simplified.replace("ó", "o").replace("ô", "o").replace("õ", "o").replace("ú", "u")
-    simplified = simplified.replace("ü", "u").replace(" ", "_").replace("-", "_")
-    simplified = _FIELD_KEY_PATTERN.sub("_", simplified).strip("_")
-    return simplified[:80] or "campo"
+_slugify_field_key = slugify_field_key
 
 
 def extract_placeholder_keys(example_output: str | None) -> list[str]:
@@ -353,6 +346,8 @@ def _payload_from_ai_response(
     )
     example_output = _clean_optional_text(data.get("example_output"), 10) or fallback.example_output
     form_fields = _normalize_form_fields(data.get("form_fields"), example_output)
+    # Sem isto, uma lacuna como {{data_formatted}} para o campo "data" ficava sem preencher.
+    example_output, form_fields = reconcile_placeholders(example_output, form_fields)
     return ReportTemplateCreate(
         name=(name or _clean_optional_text(data.get("name"), 3) or fallback.name)[:120],
         description=(description or _clean_optional_text(data.get("description"), 3) or fallback.description)[:255],
@@ -379,11 +374,20 @@ def _analyze_reference_payload(
     data = _read_reference_file(reference_file)
     source_format = Path(filename).suffix.lower().lstrip(".") or (content_type or "arquivo")
     is_image = _is_image_reference(filename, content_type)
-    reference_text = None if is_image else _extract_reference_text(filename, content_type, data)
+    visual_mime = content_type if is_image else None
+    reference_text = None
+    if not is_image:
+        try:
+            reference_text = _extract_reference_text(filename, content_type, data)
+        except ValueError:
+            # PDF escaneado (so imagem, sem texto): a IA de visao le o documento direto.
+            if source_format != "pdf":
+                raise
+            visual_mime = "application/pdf"
     prompt = _analysis_prompt(filename, reference_text, name)
 
-    if is_image:
-        raw_analysis = _generate_reference_analysis_image(db, prompt, data, content_type)
+    if visual_mime:
+        raw_analysis = _generate_reference_analysis_image(db, prompt, data, visual_mime)
     else:
         raw_analysis = _generate_reference_analysis_text(db, prompt)
 
@@ -473,33 +477,15 @@ def _generate_reference_analysis_text(db: Session, prompt: str) -> str | None:
 
 
 def _generate_reference_analysis_image(db: Session, prompt: str, data: bytes, content_type: str | None) -> str:
-    settings_data = get_effective_provider_settings(db)
-    openai_key = settings_data.get("openai_api_key")
-    if not isinstance(openai_key, str) or not openai_key:
-        raise ValueError("Configure uma chave OpenAI para a IA analisar imagens de modelos.")
+    """Imagem ou PDF escaneado: qualquer provedor com visao (Gemini, OpenAI ou Claude)."""
+    from app.services.vision_service import VisionFile, VisionUnavailableError, normalize_mime, read_with_vision
 
-    from openai import OpenAI
-
-    media_type = content_type or "image/png"
-    client = OpenAI(api_key=openai_key, timeout=get_settings().provider_timeout_seconds)
-    encoded = base64.b64encode(data).decode("ascii")
-    response = client.chat.completions.create(
-        model=get_settings().openai_report_model,
-        messages=[
-            {"role": "system", "content": "Voce transforma documentos e imagens em modelos reutilizaveis de formulario."},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{encoded}"}},
-                ],
-            },
-        ],
-    )
-    content = response.choices[0].message.content or ""
-    if not content.strip():
-        raise ValueError("A IA retornou uma analise vazia da imagem.")
-    return content.strip()
+    media_type = normalize_mime(content_type) or "image/png"
+    try:
+        content, _provider = read_with_vision(db, prompt, [VisionFile(data=data, mime_type=media_type, name="modelo")])
+    except VisionUnavailableError as exc:
+        raise ValueError(str(exc)) from exc
+    return content
 
 
 def _unique_template_name(repository: ReportTemplateRepository, requested_name: str, workspace_id: str) -> str:

@@ -31,6 +31,14 @@ class FormDetectFieldsResponse(BaseModel):
     generator_engine: TranscriptionEngine
 
 
+class FormPaperReadResponse(BaseModel):
+    template_id: str
+    fields: dict[str, str]
+    transcription: str
+    uncertain_fields: list[str] = Field(default_factory=list)
+    generator_engine: TranscriptionEngine
+
+
 class FormFillResponse(BaseModel):
     template_id: str
     title: str

@@ -372,6 +372,14 @@ export interface FormDetectFieldsResponse {
   generator_engine: Engine;
 }
 
+export interface FormPaperReadResponse {
+  template_id: string;
+  fields: Record<string, string>;
+  transcription: string;
+  uncertain_fields: string[];
+  generator_engine: Engine;
+}
+
 export interface FormFillResponse {
   template_id: string;
   title: string;
