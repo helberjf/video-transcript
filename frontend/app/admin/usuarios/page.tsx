@@ -79,7 +79,7 @@ export default function AdminUsuariosPage() {
       <SectionHeader
         eyebrow="Administração"
         title="Contas e chave de IA"
-        description="Cada conta usa a própria chave de IA. Libere aqui quem pode processar com a sua chave: a pessoa não vê a chave, e o limite de créditos do plano dela continua valendo."
+        description="Cada conta usa a própria chave de IA. Libere aqui quem pode processar com a sua chave: a pessoa não vê a chave, e o custo do uso dela cai na sua conta do provedor."
       />
 
       {error ? <div className="panel p-4 text-sm text-ember">{error}</div> : null}

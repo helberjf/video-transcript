@@ -43,7 +43,7 @@ cada pessoa no próprio workspace e usando a **própria chave de IA**, guardada 
 Como funciona a chave de IA de cada conta:
 
 - `admin` (emails em `ADMIN_EMAILS`): usa e configura a chave global em Ajustes.
-- Conta liberada pelo admin em `/admin/usuarios`: processa com a chave do admin, sem vê-la. O limite de créditos do plano continua valendo.
+- Conta liberada pelo admin em `/admin/usuarios`: processa com a chave do admin, sem vê-la. Com `CREDIT_LIMITS=true` no backend, o limite de créditos do plano vale para essas contas; com `false` (padrão atual da web), não há limite.
 - Demais contas: cadastram a própria chave em `/chave-ia` (passo 2 do cadastro). O backend cifra com AES-256-GCM
   (`AI_KEYS_ENCRYPTION_KEY`) e guarda só o texto cifrado na tabela `workspace_ai_keys`. A tela mostra apenas o começo e o fim da chave.
   Essas contas não têm limite de créditos, porque pagam o provedor direto.

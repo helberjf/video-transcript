@@ -21,7 +21,7 @@ export function SharedAiKeyNotice() {
   return (
     <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4 text-sm leading-6 text-emerald-200">
       <p className="font-semibold">Sua conta usa a chave de IA liberada pelo administrador.</p>
-      <p className="mt-1">Não é preciso cadastrar uma chave. O limite de créditos do seu plano vale normalmente.</p>
+      <p className="mt-1">Não é preciso cadastrar uma chave.</p>
     </div>
   );
 }
