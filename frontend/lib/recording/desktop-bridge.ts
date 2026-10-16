@@ -14,9 +14,15 @@ export interface DesktopRecordingBridge {
   onOsScreenshot: (callback: (payload: { dataUrl: string; source: "folder" | "clipboard" }) => void) => () => void;
 }
 
+export interface DesktopUpdatesBridge {
+  /** Abre os avisos nativos do app: nova versao, download e reinicio. */
+  check: () => Promise<void>;
+  getVersion: () => Promise<string>;
+}
+
 declare global {
   interface Window {
-    modeloiaDesktop?: { isDesktop: boolean; recording?: DesktopRecordingBridge };
+    modeloiaDesktop?: { isDesktop: boolean; recording?: DesktopRecordingBridge; updates?: DesktopUpdatesBridge };
   }
 }
 

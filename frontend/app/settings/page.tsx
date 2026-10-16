@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { DesktopUpdatesCard } from "@/components/desktop-updates-card";
 import { SectionHeader } from "@/components/section-header";
 import { LANGUAGE_OPTIONS, TRANSCRIPTION_PROVIDER_LABELS, WHISPER_MODEL_OPTIONS } from "@/lib/transcription-options";
 import { formatBytes } from "@/lib/utils";
@@ -677,6 +678,7 @@ export default function SettingsPage() {
                 : "nao configurados"}
             </p>
           </div>
+          <DesktopUpdatesCard />
         </div>
       </section>
     </div>

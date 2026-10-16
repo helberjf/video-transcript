@@ -6,6 +6,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 const { confirmCloseWhileRecording, setupRecordingBridge } = require("./recording-bridge.cjs");
+const { scheduleStartupUpdateCheck, setupAutoUpdater } = require("./updater.cjs");
 
 const BACKEND_PORT = Number(process.env.ELECTRON_BACKEND_PORT || 38500);
 const FRONTEND_PORT = Number(process.env.ELECTRON_FRONTEND_PORT || 38501);
@@ -439,6 +440,7 @@ async function bootApplication() {
   });
   await mainWindow?.loadURL(`http://127.0.0.1:${FRONTEND_PORT}`);
   showMainWindow();
+  scheduleStartupUpdateCheck();
   if (!app.isPackaged && process.env.ELECTRON_OPEN_DEVTOOLS === "1") {
     mainWindow?.webContents.openDevTools({ mode: "detach" });
   }
@@ -511,6 +513,7 @@ app.whenReady().then(() => {
     allowedOrigins: () => [`http://127.0.0.1:${FRONTEND_PORT}`, `http://localhost:${FRONTEND_PORT}`],
     log,
   });
+  setupAutoUpdater({ getWindow: () => mainWindow, log });
   void bootApplication().catch((error) => {
     showStartupError(error);
   });

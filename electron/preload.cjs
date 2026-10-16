@@ -17,4 +17,8 @@ contextBridge.exposeInMainWorld("modeloiaDesktop", {
     onHotkey: (callback) => subscribe("recording:hotkey", callback),
     onOsScreenshot: (callback) => subscribe("recording:os-screenshot", callback),
   },
+  updates: {
+    check: () => ipcRenderer.invoke("updates:check"),
+    getVersion: () => ipcRenderer.invoke("updates:get-version"),
+  },
 });

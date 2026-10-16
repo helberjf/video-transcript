@@ -12,7 +12,8 @@
     "desktop:prepare:ffmpeg": "node electron/scripts/prepare-ffmpeg.cjs",
     "desktop:prepare": "npm run desktop:prepare:frontend && npm run desktop:prepare:backend && npm run desktop:prepare:ffmpeg",
     "desktop:pack:dir": "npm run desktop:prepare && electron-builder --dir",
-    "desktop:build": "npm run desktop:prepare && electron-builder --win nsis && node electron/scripts/copy-installer-to-root.cjs"
+    "desktop:build": "npm run desktop:prepare && electron-builder --win nsis --publish never && node electron/scripts/copy-installer-to-root.cjs",
+    "desktop:release": "npm run desktop:prepare && electron-builder --win nsis --publish always && node electron/scripts/copy-installer-to-root.cjs"
   },
   "devDependencies": {
     "electron": "^37.2.6",
@@ -22,7 +23,7 @@
   "build": {
     "appId": "br.com.modeloia",
     "productName": "ModeloIA",
-    "artifactName": "ModeloIA Setup ${version}.${ext}",
+    "artifactName": "ModeloIA-Setup-${version}.${ext}",
     "asar": true,
     "directories": {
       "output": "dist-electron"
@@ -31,6 +32,7 @@
       "electron/main.cjs",
       "electron/recording-bridge.cjs",
       "electron/preload.cjs",
+      "electron/updater.cjs",
       "package.json"
     ],
     "extraResources": [
@@ -66,6 +68,17 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "helberjf",
+        "repo": "video-transcript",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

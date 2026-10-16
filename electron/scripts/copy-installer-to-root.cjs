@@ -12,7 +12,7 @@ if (!fs.existsSync(distDir)) {
 
 const installer = fs
   .readdirSync(distDir)
-  .filter((file) => /^ModeloIA Setup .*\.exe$/i.test(file))
+  .filter((file) => /^ModeloIA[ -]Setup[ -].*\.exe$/i.test(file))
   .map((file) => path.join(distDir, file))
   .sort((left, right) => fs.statSync(right).mtimeMs - fs.statSync(left).mtimeMs)[0];
 
