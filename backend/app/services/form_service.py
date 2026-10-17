@@ -36,12 +36,16 @@ class FormExportArtifact:
 def _build_form_prompt(payload: FormFillRequest, template_prompt: str, example_output: str | None, additional_instructions: str | None) -> str:
     return build_report_prompt(
         transcription=payload.source_text,
+        document_model_base_instructions=None,
+        document_model_default_context=None,
+        document_model_source_text=None,
         template_prompt=template_prompt,
         example_output=example_output,
         custom_request=(
             "Preencha o modelo de documento como uma sugestao pronta para revisao. "
             "Use o audio transcrito ou texto como fonte dos dados."
         ),
+        report_context=None,
         additional_instructions=additional_instructions,
     )
 
@@ -329,6 +333,9 @@ def fill_form_from_fields(db: Session, payload: FormFillFieldsRequest, workspace
     source_text = _format_fields_as_text(template.form_fields, fields)
     prompt = build_report_prompt(
         transcription=f"Campos preenchidos pelo usuario:\n{source_text}",
+        document_model_base_instructions=None,
+        document_model_default_context=None,
+        document_model_source_text=None,
         template_prompt=template.base_prompt,
         example_output=example_output,
         custom_request=(
@@ -336,6 +343,7 @@ def fill_form_from_fields(db: Session, payload: FormFillFieldsRequest, workspace
             "Substitua cada placeholder ({{...}}) pelo valor correspondente. "
             "Quando um campo estiver vazio, escreva 'Nao informado'."
         ),
+        report_context=None,
         additional_instructions=payload.additional_instructions or template.complementary_instructions,
     )
     content, engine = _run_report_provider_chain(
