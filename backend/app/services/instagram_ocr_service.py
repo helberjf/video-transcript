@@ -32,6 +32,7 @@ from app.services.instagram_post_service import (
     _used_cookies,
 )
 from app.services.settings_service import get_effective_provider_settings
+from app.services.usage_service import charge
 from app.services.upload_service import (
     _build_ydl_options,
     _validate_remote_media_url,
@@ -401,10 +402,20 @@ def _run_job(job_id: str, url: str) -> None:
                 continue
 
             try:
-                image_bytes, mime_type = _download_slide_bytes(target_url, referer=url)
-                ocr_text, provider = _run_ocr_chain(image_bytes, mime_type, provider_settings)
+                with charge(
+                    db,
+                    job.workspace_id,
+                    "instagram_ocr",
+                    idempotency_key=f"instagram:{job.id}:{index}",
+                    metadata={"job_id": job.id, "slide": index},
+                ):
+                    image_bytes, mime_type = _download_slide_bytes(target_url, referer=url)
+                    ocr_text, provider = _run_ocr_chain(image_bytes, mime_type, provider_settings)
                 slide_result.ocr_text = ocr_text
                 slide_result.provider = provider
+            except HTTPException as exc:
+                # Sem creditos: o slide fica com o aviso e os seguintes tambem.
+                slide_result.error = str(exc.detail)
             except Exception as exc:
                 logger.exception("Falha ao processar slide %s", index)
                 slide_result.error = str(exc)

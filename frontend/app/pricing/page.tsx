@@ -20,7 +20,9 @@ export default function PricingPage() {
           IA inclusa por creditos, sem o cliente configurar API.
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-8 text-slate">
-          1 minuto de audio/video consome 1 credito. 1 imagem ou pagina de documento consome 1 credito. Gerar o documento final consome 1 credito.
+          Toda ação com IA usa créditos: 1 minuto de áudio, vídeo ou transcrição ao vivo consome 1 crédito; cada imagem ou
+          arquivo lido, 1 crédito; cada documento, formulário, resumo, pergunta ou sugestão gerada pela IA, 1 crédito. Se a IA
+          falhar, o crédito volta. Ver, editar e exportar não gastam nada.
         </p>
       </section>
 

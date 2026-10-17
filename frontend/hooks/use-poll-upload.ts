@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { notifyCreditsChanged } from "@/lib/credits";
 import { getReportsByUpload, getUpload } from "@/services/api";
 import type { ReportRead, UploadItem } from "@/types/api";
 
@@ -40,6 +41,9 @@ export function usePollUpload(uploadId: string) {
 
         if (uploadData.status !== "completed" && uploadData.status !== "error") {
           scheduleNextPoll();
+        } else {
+          // A duração da mídia é cobrada (ou devolvida) no fim do processamento.
+          notifyCreditsChanged();
         }
       } catch (err) {
         if (cancelled) {

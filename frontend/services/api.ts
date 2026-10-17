@@ -1,6 +1,7 @@
 import type {
   BrowserLoginTarget,
   CookiesStatus,
+  CreditStatus,
   DashboardStats,
   DocumentModelCreatePayload,
   DocumentModelRead,
@@ -38,6 +39,7 @@ import type {
   UploadItem,
   UploadListResponse,
 } from "@/types/api";
+import { notifyCreditsChanged } from "@/lib/credits";
 import { getWorkspaceRequestHeader } from "@/lib/workspace-store";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api";
@@ -83,9 +85,19 @@ async function getApiAuthHeaders(): Promise<Record<string, string>> {
   }
 }
 
+/** fetch do backend que avisa o medidor de creditos: acoes podem ter cobrado e 402 e falta de saldo. */
+async function backendFetch(url: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(url, init);
+  const method = (init?.method ?? "GET").toUpperCase();
+  if (response.status === 402 || (response.ok && method !== "GET")) {
+    notifyCreditsChanged();
+  }
+  return response;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const authHeaders = await getApiAuthHeaders();
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await backendFetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -178,6 +190,10 @@ export function startProcessing(uploadId: string, payload: StartProcessingPayloa
   });
 }
 
+export function getCredits() {
+  return request<CreditStatus>("/credits");
+}
+
 export function getDashboardStats() {
   return request<DashboardStats>("/dashboard/stats");
 }
@@ -230,7 +246,7 @@ export async function createDocumentModel(
     formData.append("base_instructions", fields.base_instructions.trim());
   }
 
-  const response = await fetch(`${API_BASE}/document-models`, {
+  const response = await backendFetch(`${API_BASE}/document-models`, {
     method: "POST",
     headers: await getApiAuthHeaders(),
     body: formData,
@@ -279,7 +295,7 @@ export async function createTemplateFromReference(
     formData.append("category", fields.category.trim());
   }
 
-  const response = await fetch(`${API_BASE}/report-templates/analyze-reference`, {
+  const response = await backendFetch(`${API_BASE}/report-templates/analyze-reference`, {
     method: "POST",
     headers: await getApiAuthHeaders(),
     body: formData,
@@ -310,7 +326,7 @@ export async function analyzeTemplateReference(
     formData.append("category", fields.category.trim());
   }
 
-  const response = await fetch(`${API_BASE}/report-templates/analyze-reference-preview`, {
+  const response = await backendFetch(`${API_BASE}/report-templates/analyze-reference-preview`, {
     method: "POST",
     headers: await getApiAuthHeaders(),
     body: formData,
@@ -329,7 +345,7 @@ export async function extractTemplateReferenceText(file: File): Promise<Template
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE}/report-templates/extract-reference-text`, {
+  const response = await backendFetch(`${API_BASE}/report-templates/extract-reference-text`, {
     method: "POST",
     headers: await getApiAuthHeaders(),
     body: formData,
@@ -404,7 +420,7 @@ export async function readPaperFields(templateId: string, files: File[], additio
   if (additionalInstructions) {
     formData.append("additional_instructions", additionalInstructions);
   }
-  const response = await fetch(`${API_BASE}/forms/read-paper`, {
+  const response = await backendFetch(`${API_BASE}/forms/read-paper`, {
     method: "POST",
     headers: authHeaders,
     body: formData,
@@ -418,7 +434,7 @@ export async function readPaperFields(templateId: string, files: File[], additio
 
 export async function exportForm(payload: FormExportPayload): Promise<{ blob: Blob; filename: string | null }> {
   const authHeaders = await getApiAuthHeaders();
-  const response = await fetch(`${API_BASE}/forms/export`, {
+  const response = await backendFetch(`${API_BASE}/forms/export`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders },
     body: JSON.stringify(payload),
@@ -447,7 +463,7 @@ export async function downloadReportExport(
   reportId: string,
   extension: ReportExportExtension,
 ): Promise<{ blob: Blob; filename: string | null }> {
-  const response = await fetch(`${API_BASE}/reports/${reportId}/exports/${extension}`, {
+  const response = await backendFetch(`${API_BASE}/reports/${reportId}/exports/${extension}`, {
     headers: await getApiAuthHeaders(),
     cache: "no-store",
   });
@@ -482,7 +498,7 @@ export async function uploadCookiesFile(file: File): Promise<CookiesStatus> {
   const authHeaders = await getApiAuthHeaders();
   const formData = new FormData();
   formData.append("file", file);
-  const response = await fetch(`${API_BASE}/cookies`, {
+  const response = await backendFetch(`${API_BASE}/cookies`, {
     method: "POST",
     headers: authHeaders,
     body: formData,
@@ -550,7 +566,7 @@ export function startRecording(payload: { title?: string; language?: string; cap
 
 export async function uploadRecordingChunk(uploadId: string, sequence: number, chunk: Blob): Promise<void> {
   const authHeaders = await getApiAuthHeaders();
-  const response = await fetch(`${API_BASE}/recordings/${uploadId}/chunks/${sequence}`, {
+  const response = await backendFetch(`${API_BASE}/recordings/${uploadId}/chunks/${sequence}`, {
     method: "PUT",
     headers: { "Content-Type": "application/octet-stream", ...authHeaders },
     body: chunk,
@@ -572,7 +588,7 @@ export async function uploadRecordingCapture(
   formData.append("image", image, `captura.${image.type === "image/jpeg" ? "jpg" : "png"}`);
   formData.append("offset_seconds", String(offsetSeconds));
   formData.append("trigger", trigger);
-  const response = await fetch(`${API_BASE}/recordings/${uploadId}/captures`, {
+  const response = await backendFetch(`${API_BASE}/recordings/${uploadId}/captures`, {
     method: "POST",
     headers: authHeaders,
     body: formData,
@@ -630,7 +646,7 @@ export function renameSpeakers(uploadId: string, names: Record<string, string>) 
 /** Imagens e audio exigem cabecalhos de autenticacao: baixamos como blob e geramos uma URL local. */
 export async function fetchProtectedObjectUrl(path: string): Promise<string> {
   const authHeaders = await getApiAuthHeaders();
-  const response = await fetch(`${API_BASE}${path}`, { headers: authHeaders, cache: "no-store" });
+  const response = await backendFetch(`${API_BASE}${path}`, { headers: authHeaders, cache: "no-store" });
   if (!response.ok) {
     throw new Error("Falha ao carregar arquivo");
   }
@@ -646,7 +662,7 @@ export async function liveTranscribe(audio: Blob, language: string, prompt: stri
   if (prompt) {
     formData.append("prompt", prompt);
   }
-  const response = await fetch(`${API_BASE}/live/transcribe`, {
+  const response = await backendFetch(`${API_BASE}/live/transcribe`, {
     method: "POST",
     headers: authHeaders,
     body: formData,

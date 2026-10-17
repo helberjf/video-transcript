@@ -22,7 +22,7 @@ from app.services.report_template_service import (
     list_templates,
     update_template,
 )
-from app.services.usage_service import consume_credits
+from app.services.usage_service import charge
 
 
 router = APIRouter(prefix="/api", tags=["report-templates"])
@@ -43,14 +43,14 @@ def analyze_template_reference_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> ReportTemplateReferenceAnalysis:
     try:
-        consume_credits(db, workspace_id, "template_reference_analysis", 1, metadata={"filename": file.filename})
-        return analyze_template_reference(
-            db,
-            file,
-            name=name.strip() if isinstance(name, str) and name.strip() else None,
-            description=description.strip() if isinstance(description, str) and description.strip() else None,
-            category=category.strip() if isinstance(category, str) and category.strip() else None,
-        )
+        with charge(db, workspace_id, "template_reference_analysis", metadata={"filename": file.filename}):
+            return analyze_template_reference(
+                db,
+                file,
+                name=name.strip() if isinstance(name, str) and name.strip() else None,
+                description=description.strip() if isinstance(description, str) and description.strip() else None,
+                category=category.strip() if isinstance(category, str) and category.strip() else None,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -62,8 +62,8 @@ def extract_template_reference_text_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> ReportTemplateReferenceText:
     try:
-        consume_credits(db, workspace_id, "template_reference_extract", 1, metadata={"filename": file.filename})
-        return extract_template_reference_text(file)
+        with charge(db, workspace_id, "template_reference_extract", metadata={"filename": file.filename}):
+            return extract_template_reference_text(file)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -78,16 +78,16 @@ def create_template_from_reference_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> ReportTemplateRead:
     try:
-        consume_credits(db, workspace_id, "template_reference_create", 1, metadata={"filename": file.filename})
-        return call_with_workspace(
-            create_template_from_reference,
-            db,
-            file,
-            workspace_id=workspace_id,
-            name=name.strip() if isinstance(name, str) and name.strip() else None,
-            description=description.strip() if isinstance(description, str) and description.strip() else None,
-            category=category.strip() if isinstance(category, str) and category.strip() else None,
-        )
+        with charge(db, workspace_id, "template_reference_create", metadata={"filename": file.filename}):
+            return call_with_workspace(
+                create_template_from_reference,
+                db,
+                file,
+                workspace_id=workspace_id,
+                name=name.strip() if isinstance(name, str) and name.strip() else None,
+                description=description.strip() if isinstance(description, str) and description.strip() else None,
+                category=category.strip() if isinstance(category, str) and category.strip() else None,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

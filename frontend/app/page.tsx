@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { StatusBadge } from "@/components/status-badge";
 import { TemplateVariableSelector, type ManualTemplateDraft } from "@/components/template-variable-selector";
+import { useCredits } from "@/hooks/use-credits";
 import { useWorkspace } from "@/hooks/use-workspace";
 import {
   getDefaultTranscriptionProvider,
@@ -37,6 +38,7 @@ const isPersonalMode = process.env.NEXT_PUBLIC_PERSONAL_MODE === "1";
 export default function DashboardPage() {
   const router = useRouter();
   const { workspace, saveWorkspace } = useWorkspace();
+  const { credits } = useCredits();
   const { status } = useSession();
   const showDashboard = isDesktopMode || isPersonalMode || status === "authenticated";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -484,7 +486,13 @@ export default function DashboardPage() {
             <p className="mt-2 text-sm leading-6 text-slate">
               {isDesktopMode
                 ? "Progresso salvo neste computador. Os arquivos, modelos e relatorios ficam no ambiente local."
-                : `Progresso salvo no workspace. Uso mensal: ${workspace.creditsUsed ?? 0}/${workspace.creditsLimit ?? "custom"} creditos.`}
+                : `Progresso salvo no workspace.${
+                    credits
+                      ? credits.limit === null
+                        ? ` ${credits.used} créditos usados neste mês, sem limite.`
+                        : ` Uso mensal: ${credits.used}/${credits.limit} créditos.`
+                      : ""
+                  }`}
             </p>
           </div>
           {isDesktopMode ? (

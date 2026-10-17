@@ -12,6 +12,7 @@ from app.schemas.instagram import (
 )
 from app.services.instagram_ocr_service import get_analyze_job, start_analyze_job
 from app.services.instagram_post_service import inspect_instagram_post
+from app.services.usage_service import credit_cost, ensure_credits_available
 
 
 router = APIRouter(prefix="/api", tags=["instagram"])
@@ -31,6 +32,8 @@ def start_instagram_post_analyze(
     db: Session = Depends(get_db),
     workspace_id: str = Depends(get_workspace_id),
 ) -> InstagramAnalyzeJobStatus:
+    # Cada slide e cobrado no job; sem saldo nem para o primeiro, recusa ja aqui.
+    ensure_credits_available(db, workspace_id, credit_cost("instagram_ocr"))
     return start_analyze_job(db, payload.url, workspace_id)
 
 

@@ -6,6 +6,7 @@ import logging
 from statistics import median
 from typing import Any
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core import file_store
@@ -15,6 +16,7 @@ from app.models.upload import Upload
 from app.services.diarization_service import Segment
 from app.services.recording_service import hamming_distance
 from app.services.settings_service import get_effective_provider_settings
+from app.services.usage_service import charge
 
 
 logger = logging.getLogger("meeting")
@@ -238,7 +240,29 @@ def _describe_claude(data: bytes, mime_type: str, api_key: str) -> str:
     return "\n".join(getattr(block, "text", "") for block in response.content).strip()
 
 
-def describe_captures(db: Session, captures: list[MeetingCapture]) -> None:
+class _CaptureNotDescribed(Exception):
+    pass
+
+
+def _describe_capture(capture: MeetingCapture, data: bytes, providers: list) -> None:
+    for name, key, describe in providers:
+        if not isinstance(key, str) or not key:
+            continue
+        try:
+            text = describe(data, capture.mime_type, key)
+        except Exception as exc:
+            logger.warning("[reuniao] visao %s falhou: %s", name, str(exc)[:300])
+            print(f"[reuniao] visao {name} falhou: {str(exc)[:300]}", flush=True)
+            continue
+        if text:
+            capture.description = text
+            capture.vision_engine = name
+            return
+    raise _CaptureNotDescribed()
+
+
+def describe_captures(db: Session, captures: list[MeetingCapture], workspace_id: str = "local-workspace") -> None:
+    """Descreve cada captura com a IA de visao: 1 credito por imagem, devolvido se nenhum provedor responder."""
     config = get_effective_provider_settings(db)
     providers = [
         ("gemini", config.get("gemini_api_key"), _describe_gemini),
@@ -251,19 +275,22 @@ def describe_captures(db: Session, captures: list[MeetingCapture]) -> None:
         data = file_store.get(capture.stored_path, db)
         if not data:
             continue
-        for name, key, describe in providers:
-            if not isinstance(key, str) or not key:
-                continue
-            try:
-                text = describe(data, capture.mime_type, key)
-            except Exception as exc:
-                logger.warning("[reuniao] visao %s falhou: %s", name, str(exc)[:300])
-                print(f"[reuniao] visao {name} falhou: {str(exc)[:300]}", flush=True)
-                continue
-            if text:
-                capture.description = text
-                capture.vision_engine = name
-                break
+        try:
+            with charge(
+                db,
+                workspace_id,
+                "meeting_image_analysis",
+                idempotency_key=f"meeting-capture:{capture.id}",
+                metadata={"upload_id": capture.upload_id, "capture_id": capture.id},
+            ):
+                _describe_capture(capture, data, providers)
+        except _CaptureNotDescribed:
+            continue
+        except HTTPException as exc:
+            # Sem creditos para as imagens: a reuniao segue so com o audio.
+            print(f"[reuniao] capturas sem descricao: {exc.detail}", flush=True)
+            break
+        db.commit()
     db.commit()
 
 

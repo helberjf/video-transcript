@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile
 from fastapi import HTTPException
 from fastapi.responses import Response
@@ -25,6 +27,7 @@ from app.services import recording_service
 from app.services import meeting_insights_service
 from app.services.meeting_service import rename_speakers
 from app.services.upload_service import get_upload_or_404
+from app.services.usage_service import charge, credit_cost, ensure_credits_available
 from app.workers.meeting_worker import process_meeting
 
 
@@ -80,6 +83,8 @@ def finish_recording_endpoint(
     db: Session = Depends(get_db),
     workspace_id: str = Depends(get_workspace_id),
 ) -> ProcessingResponse:
+    # A duracao e cobrada no worker; sem saldo nem para 1 minuto, avisa antes de enfileirar.
+    ensure_credits_available(db, workspace_id, credit_cost("media_processing_duration"))
     upload = recording_service.finish_recording(
         db,
         upload_id,
@@ -103,10 +108,12 @@ def reprocess_recording_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> ProcessingResponse:
     upload = recording_service.get_meeting_or_404(db, upload_id, workspace_id)
+    ensure_credits_available(db, workspace_id, credit_cost("media_processing_duration"))
     upload.analysis_mode = payload.analysis_mode
     upload.status = ProcessingStatus.UPLOADED
     UploadRepository(db).save(upload)
-    background_tasks.add_task(process_meeting, upload.id)
+    # Reprocessar transcreve de novo, entao e uma cobranca nova (chave propria).
+    background_tasks.add_task(process_meeting, upload.id, run_id=uuid4().hex)
     return ProcessingResponse(id=upload.id, status=upload.status, message="Reprocessamento iniciado")
 
 
@@ -164,7 +171,10 @@ def rename_speakers_endpoint(
 def regenerate_insights_endpoint(upload_id: str, db: Session = Depends(get_db), workspace_id: str = Depends(get_workspace_id)):
     upload = recording_service.get_meeting_or_404(db, upload_id, workspace_id)
     try:
-        meeting_insights_service.generate_insights(db, upload)
+        with charge(db, workspace_id, "meeting_insights", metadata={"upload_id": upload_id}):
+            meeting_insights_service.generate_insights(db, upload)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Nao foi possivel gerar o resumo: {exc}") from exc
     return UploadRepository(db).save(upload)
@@ -205,6 +215,7 @@ def ask_meeting_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ):
     upload = recording_service.get_meeting_or_404(db, upload_id, workspace_id)
-    entry = meeting_insights_service.ask_question(db, upload, payload.pergunta)
+    with charge(db, workspace_id, "meeting_question", metadata={"upload_id": upload_id}):
+        entry = meeting_insights_service.ask_question(db, upload, payload.pergunta)
     UploadRepository(db).save(upload)
     return entry

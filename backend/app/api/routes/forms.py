@@ -19,7 +19,7 @@ from app.schemas.form import (
 )
 from app.services.form_service import build_form_export, detect_form_fields, fill_form_from_fields, fill_form_from_text
 from app.services.paper_reading_service import read_paper_fields
-from app.services.usage_service import consume_credits
+from app.services.usage_service import charge
 from app.services.vision_service import VisionUnavailableError
 
 
@@ -33,8 +33,8 @@ def fill_form_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> FormFillResponse:
     try:
-        consume_credits(db, workspace_id, "form_generation", 1, metadata={"template_id": payload.template_id})
-        return call_with_workspace(fill_form_from_text, db, payload, workspace_id=workspace_id)
+        with charge(db, workspace_id, "form_generation", metadata={"template_id": payload.template_id}):
+            return call_with_workspace(fill_form_from_text, db, payload, workspace_id=workspace_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -46,8 +46,8 @@ def fill_form_fields_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> FormFillResponse:
     try:
-        consume_credits(db, workspace_id, "form_generation", 1, metadata={"template_id": payload.template_id})
-        return call_with_workspace(fill_form_from_fields, db, payload, workspace_id=workspace_id)
+        with charge(db, workspace_id, "form_generation", metadata={"template_id": payload.template_id}):
+            return call_with_workspace(fill_form_from_fields, db, payload, workspace_id=workspace_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -59,7 +59,8 @@ def detect_form_fields_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> FormDetectFieldsResponse:
     try:
-        return call_with_workspace(detect_form_fields, db, payload, workspace_id=workspace_id)
+        with charge(db, workspace_id, "form_field_detection", metadata={"template_id": payload.template_id}):
+            return call_with_workspace(detect_form_fields, db, payload, workspace_id=workspace_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -74,8 +75,15 @@ def read_paper_endpoint(
 ) -> FormPaperReadResponse:
     """Le fotos/scans do papel (inclusive manuscrito) e devolve os valores dos campos do modelo."""
     try:
-        consume_credits(db, workspace_id, "form_paper_reading", 1, metadata={"template_id": template_id, "files": len(files)})
-        return read_paper_fields(db, template_id, files, additional_instructions, workspace_id=workspace_id)
+        # 1 credito por foto/pagina enviada.
+        with charge(
+            db,
+            workspace_id,
+            "form_paper_reading",
+            quantity=len(files),
+            metadata={"template_id": template_id, "files": len(files)},
+        ):
+            return read_paper_fields(db, template_id, files, additional_instructions, workspace_id=workspace_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except VisionUnavailableError as exc:

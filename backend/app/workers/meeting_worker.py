@@ -23,7 +23,7 @@ from app.services.meeting_service import (
 )
 from app.services.recording_service import read_energy, read_meta, recording_key
 from app.services.transcription_service import describe_error
-from app.services.usage_service import audio_video_credits, consume_credits
+from app.services.usage_service import audio_video_credits, charge
 from app.utils.ffmpeg import probe_duration_seconds, transcode_for_transcription
 from app.workers.scope import upload_workspace_scope
 
@@ -36,12 +36,13 @@ def _safe_title(value: str) -> str:
     return cleaned[:140] or DEFAULT_TITLE_PREFIX
 
 
-def process_meeting(upload_id: str) -> None:
+def process_meeting(upload_id: str, run_id: str | None = None) -> None:
+    """`run_id` separa a cobranca de um reprocessamento da cobranca da primeira vez."""
     with upload_workspace_scope(upload_id):
-        _process_meeting(upload_id)
+        _process_meeting(upload_id, run_id)
 
 
-def _process_meeting(upload_id: str) -> None:
+def _process_meeting(upload_id: str, run_id: str | None = None) -> None:
     print(f"[reuniao] processando {upload_id}", flush=True)
     db = SessionLocal()
     repository = UploadRepository(db)
@@ -57,7 +58,7 @@ def _process_meeting(upload_id: str) -> None:
         with file_store.local_copy(recording_key(upload.id), ".webm", db) as source:
             audio_path = _prepare_audio(source)
             try:
-                _transcribe_and_analyze(db, repository, upload, audio_path)
+                _transcribe_and_analyze(db, repository, upload, audio_path, run_id)
             finally:
                 if audio_path != source:
                     audio_path.unlink(missing_ok=True)
@@ -86,24 +87,30 @@ def _prepare_audio(source: Path) -> Path:
         return source
 
 
-def _transcribe_and_analyze(db: Session, repository: UploadRepository, upload: Upload, audio_path: Path) -> None:
+def _transcribe_and_analyze(
+    db: Session,
+    repository: UploadRepository,
+    upload: Upload,
+    audio_path: Path,
+    run_id: str | None = None,
+) -> None:
     meta = read_meta(upload)
     try:
         upload.duration_seconds = probe_duration_seconds(audio_path) or upload.duration_seconds
     except Exception:
         pass
-    consume_credits(
+    # Cobre transcricao, nomes, resumo e checklist; se a transcricao falhar, os creditos voltam.
+    with charge(
         db,
         upload.workspace_id,
         "media_processing_duration",
-        audio_video_credits(upload.duration_seconds),
-        idempotency_key=f"meeting:{upload.id}:duration",
+        quantity=audio_video_credits(upload.duration_seconds),
+        idempotency_key=f"meeting:{upload.id}:duration" + (f":{run_id}" if run_id else ""),
         metadata={"upload_id": upload.id, "duration_seconds": upload.duration_seconds},
-    )
-    upload.status = ProcessingStatus.TRANSCRIBING
-    repository.save(upload)
-
-    result = transcribe_with_speakers(db, audio_path, meta.get("language"))
+    ):
+        upload.status = ProcessingStatus.TRANSCRIBING
+        repository.save(upload)
+        result = transcribe_with_speakers(db, audio_path, meta.get("language"))
     print(f"[reuniao] transcricao OK engine={result.engine} trechos={len(result.segments)}", flush=True)
     segments, speakers = build_speakers(result.segments, read_energy(upload.id, db), result.has_speaker_labels)
     upload.transcript_segments = json.dumps(segments, ensure_ascii=False)
@@ -121,7 +128,7 @@ def _transcribe_and_analyze(db: Session, repository: UploadRepository, upload: U
     mark_duplicate_captures(captures)
     db.commit()
     if upload.analysis_mode == "audio_images" and captures:
-        describe_captures(db, captures)
+        describe_captures(db, captures, upload.workspace_id)
 
     upload.transcription_text = build_meeting_text(upload)
     upload.status = ProcessingStatus.GENERATING_REPORT

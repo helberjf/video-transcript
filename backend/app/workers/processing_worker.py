@@ -7,13 +7,18 @@ from app.models.enums import FileType, ProcessingStatus, TranscriptionEngine
 from app.repositories.upload_repository import UploadRepository
 from app.services.settings_service import get_effective_provider_settings
 from app.services.transcription_service import describe_error, transcribe_audio
-from app.services.usage_service import audio_video_credits, consume_credits
+from app.services.usage_service import audio_video_credits, consume_credits, credit_cost, refund_credits
 from app.utils.ffmpeg import extract_audio_to_mp3, normalize_audio, probe_duration_seconds
 from app.utils.files import safe_unlink
 from app.workers.scope import upload_workspace_scope
 
 
 logger = logging.getLogger("processing_worker")
+
+
+def processing_charge_key(upload_id: str, part: str, run_id: str | None = None) -> str:
+    """Chave da cobranca de um processamento; `run_id` separa cada reprocessamento."""
+    return f"process:{upload_id}:{run_id}:{part}" if run_id else f"process:{upload_id}:{part}"
 
 
 def process_upload(
@@ -23,9 +28,10 @@ def process_upload(
     use_api: bool = True,
     whisper_model: str | None = None,
     transcription_provider: str | None = None,
+    run_id: str | None = None,
 ) -> None:
     with upload_workspace_scope(upload_id):
-        _process_upload(upload_id, language, force_reprocess, use_api, whisper_model, transcription_provider)
+        _process_upload(upload_id, language, force_reprocess, use_api, whisper_model, transcription_provider, run_id)
 
 
 def _process_upload(
@@ -35,6 +41,7 @@ def _process_upload(
     use_api: bool,
     whisper_model: str | None,
     transcription_provider: str | None,
+    run_id: str | None = None,
 ) -> None:
     print(f"[worker] iniciando processamento upload={upload_id} use_api={use_api} whisper={whisper_model} provider={transcription_provider}", flush=True)
     db = SessionLocal()
@@ -65,13 +72,13 @@ def _process_upload(
 
         upload.converted_path = str(converted_path)
         upload.duration_seconds = probe_duration_seconds(converted_path)
-        total_credits = audio_video_credits(upload.duration_seconds)
+        # O 1o minuto foi cobrado ao iniciar; aqui entra o resto da duracao.
         consume_credits(
             db,
             upload.workspace_id,
             "media_processing_duration",
-            max(0, total_credits - 1),
-            idempotency_key=f"process:{upload.id}:duration",
+            credit_cost("media_processing_duration", audio_video_credits(upload.duration_seconds) - 1),
+            idempotency_key=processing_charge_key(upload.id, "duration", run_id),
             metadata={"upload_id": upload.id, "duration_seconds": upload.duration_seconds},
         )
         upload.status = ProcessingStatus.TRANSCRIBING
@@ -105,6 +112,9 @@ def _process_upload(
         tb = traceback.format_exc()
         print(f"[worker] ERRO no upload {upload_id}: {exc}\n{tb}", flush=True)
         logger.exception("Falha ao processar upload %s", upload_id)
+        # Sem transcricao, nada foi entregue: devolve o 1o minuto e o resto da duracao.
+        refund_credits(db, processing_charge_key(upload_id, "start", run_id))
+        refund_credits(db, processing_charge_key(upload_id, "duration", run_id))
         upload = repository.get(upload_id)
         if upload:
             upload.status = ProcessingStatus.ERROR

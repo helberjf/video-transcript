@@ -5,7 +5,9 @@ import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { CreditBadge, CreditsExhaustedNotice } from "@/components/credit-meter";
 import { useAiKeyStatus } from "@/hooks/use-ai-key-status";
+import { useCredits } from "@/hooks/use-credits";
 import { useWorkspace } from "@/hooks/use-workspace";
 
 const navigation = [
@@ -53,6 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
   const planLabel = workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "business" ? "Business" : workspace.plan === "pro" ? "Pro" : "Trial";
   const aiKey = useAiKeyStatus();
+  const { credits } = useCredits();
   const navItems =
     session?.user?.isAdmin && !isDesktopMode && !isPersonalMode ? [...visibleNavigation, ...adminNavigation] : visibleNavigation;
   const showPublicLayout =
@@ -144,6 +147,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <p className="mt-1 text-xs text-slate">{workspace.clientName} - {workspace.segment}</p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {credits ? <CreditBadge status={credits} /> : null}
               {isPersonalMode ? (
                 <button
                   className="button-secondary px-4 py-2"
@@ -183,6 +187,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="text-slate">Ela fica guardada criptografada e só é usada nos seus pedidos.</span>
             </Link>
           ) : null}
+
+          {credits ? <CreditsExhaustedNotice status={credits} /> : null}
 
           <div className="space-y-6">{children}</div>
         </main>

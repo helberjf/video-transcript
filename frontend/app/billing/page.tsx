@@ -4,7 +4,9 @@ import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 
+import { CreditPanel } from "@/components/credit-meter";
 import { SectionHeader } from "@/components/section-header";
+import { useCredits } from "@/hooks/use-credits";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { PLAN_DEFINITIONS, isPaidCheckoutPlan } from "@/lib/billing-plans";
 import type { BillingPlan } from "@/lib/stripe";
@@ -14,6 +16,7 @@ const isDesktopMode = process.env.NEXT_PUBLIC_DESKTOP_MODE === "1";
 export default function BillingPage() {
   const { data: session, status } = useSession();
   const { workspace } = useWorkspace();
+  const { credits } = useCredits();
   const [message, setMessage] = useState<string | null>(null);
   const [busyPlan, setBusyPlan] = useState<BillingPlan | "portal" | null>(null);
 
@@ -171,7 +174,6 @@ export default function BillingPage() {
             <h3 className="mt-2 text-xl font-semibold">{session?.user?.email ?? "Entre com Google para assinar"}</h3>
             <p className="mt-2 text-sm leading-6 text-slate">
               Plano atual: {workspace.plan === "enterprise" ? "Enterprise" : workspace.plan === "business" ? "Business" : workspace.plan === "pro" ? "Pro" : "Trial"}.
-              {" "}Uso: {workspace.creditsUsed ?? 0}/{workspace.creditsLimit ?? "custom"} creditos neste mes.
             </p>
           </div>
           <button className="button-secondary" type="button" disabled={busyPlan !== null || isDesktopMode} onClick={() => void openPortal()}>
@@ -180,6 +182,8 @@ export default function BillingPage() {
         </div>
         {message ? <p className="mt-4 rounded-lg border border-sand/20 bg-sand/10 px-4 py-3 text-sm text-sand">{message}</p> : null}
       </section>
+
+      {credits ? <CreditPanel status={credits} /> : null}
     </div>
   );
 }

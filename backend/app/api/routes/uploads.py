@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 
@@ -21,8 +23,8 @@ from app.services.upload_service import (
     list_uploads,
     read_dashboard_stats,
 )
-from app.services.usage_service import consume_credits
-from app.workers.processing_worker import process_upload
+from app.services.usage_service import consume_credits, credit_cost
+from app.workers.processing_worker import process_upload, processing_charge_key
 
 
 router = APIRouter(prefix="/api", tags=["uploads"])
@@ -96,12 +98,14 @@ def process_upload_endpoint(
     workspace_id: str = Depends(get_workspace_id),
 ) -> ProcessingResponse:
     upload = call_with_workspace(get_upload_or_404, db, upload_id, workspace_id=workspace_id)
+    # Reprocessar transcreve de novo: cobranca nova. Sem forcar, clicar duas vezes nao cobra duas.
+    run_id = uuid4().hex if payload.force_reprocess else None
     consume_credits(
         db,
         workspace_id,
         "media_processing_start",
-        1,
-        idempotency_key=f"process:{upload.id}:start",
+        credit_cost("media_processing_start"),
+        idempotency_key=processing_charge_key(upload.id, "start", run_id),
         metadata={"upload_id": upload.id},
     )
     background_tasks.add_task(
@@ -112,6 +116,7 @@ def process_upload_endpoint(
         payload.use_api,
         payload.whisper_model,
         payload.transcription_provider,
+        run_id=run_id,
     )
     return ProcessingResponse(id=upload.id, status=upload.status, message="Processamento iniciado")
 

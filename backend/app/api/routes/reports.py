@@ -8,6 +8,7 @@ from app.core.workspace import call_with_workspace, get_workspace_id
 from app.repositories.report_repository import ReportRepository
 from app.schemas.report import GenerateReportRequest, ReportExportExtension, ReportExportRead, ReportRead, ReportRenameRequest
 from app.services.report_service import generate_report, get_report_export, list_report_exports, rename_report
+from app.services.usage_service import charge
 
 
 router = APIRouter(prefix="/api", tags=["reports"])
@@ -19,8 +20,14 @@ def generate_report_endpoint(
     db: Session = Depends(get_db),
     workspace_id: str = Depends(get_workspace_id),
 ) -> ReportRead:
+    metadata = {
+        "upload_id": payload.upload_id,
+        "template_id": payload.template_id,
+        "document_model_id": payload.document_model_id,
+    }
     try:
-        return call_with_workspace(generate_report, db, payload, workspace_id=workspace_id)
+        with charge(db, workspace_id, "report_generation", metadata=metadata):
+            return call_with_workspace(generate_report, db, payload, workspace_id=workspace_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

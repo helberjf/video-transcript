@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal, TypeVar
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -41,6 +42,9 @@ def describe_error(error: BaseException) -> str:
     """MemoryError() vem sem mensagem; sem isto o usuario via so 'ProviderExecutionError'."""
     if isinstance(error, MemoryError):
         return "memoria insuficiente para carregar o modelo"
+    # Ex.: limite de creditos no worker; o texto vai direto para a tela do upload.
+    if isinstance(error, HTTPException):
+        return str(error.detail)
     return str(error).strip() or error.__class__.__name__
 
 

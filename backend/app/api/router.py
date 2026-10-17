@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     cookies,
+    credits,
     document_models,
     forms,
     history,
@@ -26,6 +27,7 @@ api_router.include_router(forms.router)
 api_router.include_router(history.router)
 api_router.include_router(settings.router)
 api_router.include_router(cookies.router)
+api_router.include_router(credits.router)
 api_router.include_router(instagram.router)
 api_router.include_router(recordings.router)
 api_router.include_router(live.router)

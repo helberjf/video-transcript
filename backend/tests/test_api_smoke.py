@@ -231,7 +231,7 @@ def _build_test_client(monkeypatch) -> TestClient:
     monkeypatch.setattr(
         uploads,
         "process_upload",
-        lambda upload_id, language, force_reprocess=False, use_api=True, whisper_model=None, transcription_provider=None: None,
+        lambda upload_id, language, force_reprocess=False, use_api=True, whisper_model=None, transcription_provider=None, run_id=None: None,
     )
 
     app = FastAPI()

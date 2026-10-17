@@ -424,3 +424,31 @@ export interface StartProcessingPayload {
 export interface ReportRenamePayload {
   title: string;
 }
+
+export interface CreditCost {
+  type: string;
+  label: string;
+  unit: string;
+  credits: number;
+}
+
+export interface CreditUsage {
+  type: string;
+  label: string;
+  credits: number;
+  created_at: string;
+}
+
+/** Por que a conta não tem teto mensal: app desktop, chave de IA própria ou plano sem limite. */
+export type CreditUnlimitedReason = "desktop" | "own_key" | "plan";
+
+export interface CreditStatus {
+  enabled: boolean;
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+  unlimited_reason: CreditUnlimitedReason | null;
+  resets_at: string;
+  costs: CreditCost[];
+  recent: CreditUsage[];
+}
